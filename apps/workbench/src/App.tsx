@@ -906,6 +906,15 @@ export function App() {
     applyProviderResult(await api.disconnectProvider(profileId))
   );
 
+  // Autodetect touches several providers at once, so it reports per-provider
+  // outcomes instead of one connection result. Re-read the inventory afterwards
+  // so the runtime selector reflects everything that just came online.
+  const autodetectProviders = async () => {
+    const result = await api.autodetectProviders();
+    setProviders(await api.listProviders());
+    return result;
+  };
+
   const selectIntent = (id?: string) => { setSelectedNodeId(id); setSelectedNodeIds(id ? [id] : []); setSelectedProposalNodeId(undefined); };
   const chatNodeIds = selectedProposalNode ? selectedProposalSourceIntents.map((node) => node.id) : selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
   const groups = [...new Set(graph?.nodes.map((node) => node.group).filter((value): value is string => Boolean(value)) ?? [])];
@@ -994,7 +1003,7 @@ export function App() {
           <Flex align="center" gap="3" minWidth="0">
             <span className="brand-mark"><IconBrandDatabricks size={19} /></span>
             <div className="brand-copy">
-              <Text size="2" weight="bold">Graph Engineering</Text>
+              <Text size="2" weight="bold">Aone Execution</Text>
               
             </div>
             <Separator orientation="vertical" className="h-6 bg-[#31444a]" />
@@ -1234,7 +1243,7 @@ export function App() {
               {(['agents', 'skills', 'prompts'] as string[]).includes(editorView) && <CatalogPanel section={editorView as 'agents' | 'skills' | 'prompts'} onChanged={() => void refreshCatalogs()} settingsAction={editorView === 'skills' ? <button type="button" onClick={() => openEngineeringSettings('skills')}>Skills &amp; engineering settings</button> : undefined} />}
               {editorView === 'harness' && <HarnessPanel key={graph.id} graphId={graph.id} options={harnessOptions} onChange={setHarnessOptions} disabled={uiBusy} onDesign={() => void beginChat('develop', chatNodeIds, 'Design a coherent system from this idea and connected context. Propose editable nodes appropriate to our delivery scope. Explain stack choices, tradeoffs, assumptions, and unresolved decisions. Include implementation, verification, documentation, environment setup, and agent/skill guidance where useful.')} />}
               {editorView === 'suggestions' && activePlan && <SuggestionReview key={activePlan.id} graphId={graph.id} revision={graph.draftRevision} plan={activePlan} disabled={!canEdit || dirty || planStale || activePlan.status === 'superseded'} onBusy={setChatDraftLocked} onApplied={async () => { await refreshAppliedGraph(); setActivePlan(undefined); setSelectedProposalNodeId(undefined); setEditorView('graph'); }} />}
-              {editorView === 'settings' && <section className="editor-page settings-editor"><header className="editor-page-heading"><div><h1>Settings</h1><p>Connect an AI provider and configure your workspace.</p></div><button type="button" className="quiet-button" onClick={resetLayout}>Restore layout</button></header><ProviderSettings providers={providers} onDiscover={discoverProvider} onConnect={connectProvider} onRefreshModels={refreshProviderModels} onDisconnect={disconnectProvider} /><div className="settings-links"><button type="button" className="quiet-button" onClick={() => openEngineeringSettings('harness')}>Skills &amp; engineering settings</button><button type="button" className="quiet-button" onClick={() => setEditorView('agents')}>Edit agents</button><button type="button" className="quiet-button" onClick={() => setEditorView('skills')}>Edit skills</button><button type="button" className="quiet-button" onClick={() => setEditorView('prompts')}>Edit prompt templates</button></div></section>}
+              {editorView === 'settings' && <section className="editor-page settings-editor"><header className="editor-page-heading"><div><h1>Settings</h1><p>Connect an AI provider and configure your workspace.</p></div><button type="button" className="quiet-button" onClick={resetLayout}>Restore layout</button></header><ProviderSettings providers={providers} onDiscover={discoverProvider} onConnect={connectProvider} onRefreshModels={refreshProviderModels} onDisconnect={disconnectProvider} onAutodetect={autodetectProviders} /><div className="settings-links"><button type="button" className="quiet-button" onClick={() => openEngineeringSettings('harness')}>Skills &amp; engineering settings</button><button type="button" className="quiet-button" onClick={() => setEditorView('agents')}>Edit agents</button><button type="button" className="quiet-button" onClick={() => setEditorView('skills')}>Edit skills</button><button type="button" className="quiet-button" onClick={() => setEditorView('prompts')}>Edit prompt templates</button></div></section>}
               </div>
             </div>
             <ChatPanel engineeringHarness={harnessOptions} onHarnessSettings={() => setEditorView('harness')} catalogVersion={catalogVersion} contextStale={dirty} canApply={canEdit} graphId={graph.id} graphRevision={graph.draftRevision} providerId={providerId} providers={providers} nodeIds={chatNodeIds} actionRequest={actionRequest} onBeforeSend={async () => { await persistCurrentDraftBeforeLeaving(); }} onApplyingChange={setChatDraftLocked} onApplied={refreshAppliedGraph} />

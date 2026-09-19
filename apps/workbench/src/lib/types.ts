@@ -360,6 +360,22 @@ export interface ProviderConnectionResult {
   provider?: ProviderStatus;
 }
 
+export type ProviderAutodetectStatus = 'connected' | 'skipped' | 'failed' | 'unavailable';
+
+export interface ProviderAutodetectEntry {
+  providerId: string;
+  kind: string;
+  status: ProviderAutodetectStatus;
+  model?: string | null;
+  code?: string;
+  detail: string;
+}
+
+export interface ProviderAutodetectResult {
+  results: ProviderAutodetectEntry[];
+  connected: number;
+}
+
 export type DiscoverProviderConnectionInput =
   | { kind: 'hosted'; providerId: 'openai-api' | 'anthropic-api'; apiKey: string }
   | { kind: 'local'; providerId: 'ollama'; baseUrl: string }

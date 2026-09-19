@@ -503,6 +503,18 @@ function validatedProviderBaseUrl(providerId, value) {
   return input.replace(/\/$/, '');
 }
 
+const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+
+// Ordered so the most capable runtime is reported first. Codex CLI is last
+// because it is the only one that can write to a workspace, and a user reading
+// the result should see the chat/planning providers settle before the executor.
+const AUTODETECT_CANDIDATES = Object.freeze([
+  { providerId: 'openai-api', kind: 'hosted', envName: 'OPENAI_API_KEY' },
+  { providerId: 'anthropic-api', kind: 'hosted', envName: 'ANTHROPIC_API_KEY' },
+  { providerId: 'ollama', kind: 'local' },
+  { providerId: 'codex-cli', kind: 'cli' },
+]);
+
 function canonicalSecretEnvName(providerId) {
   if (providerId === 'openai-api') return 'OPENAI_API_KEY';
   if (providerId === 'anthropic-api') return 'ANTHROPIC_API_KEY';
@@ -801,9 +813,21 @@ export function createLocalServer({
   nodeReviewStream,
   nodeReviewTimeoutMs,
   allowedBrowserOrigins = [],
+  allowNonLoopbackBind = false,
 } = {}) {
-  if (host !== '127.0.0.1' && host !== 'localhost') {
-    throw new Error('The no-login local server may bind only to 127.0.0.1 or localhost.');
+  // This engine has no authentication: anything that can open a TCP connection
+  // to it can drive it. Binding to loopback is what keeps that honest on a
+  // normal machine, so it is the default and the guard stays on.
+  //
+  // A container is the one case where loopback is wrong: a published port
+  // reaches the container's network interface, never its loopback, so a
+  // loopback-bound engine is simply unreachable. There the container's network
+  // namespace is the isolation boundary instead. That is a deliberate
+  // deployment decision, so it must be stated explicitly rather than inferred,
+  // and the operator still has to publish to the host's loopback
+  // (-p 127.0.0.1:4317:4317) to avoid handing the engine to the LAN.
+  if (host !== '127.0.0.1' && host !== 'localhost' && !allowNonLoopbackBind) {
+    throw new Error(`The no-login local server may bind only to 127.0.0.1 or localhost. To bind ${host} inside a container, set EGE_ALLOW_NON_LOOPBACK_BIND=1 and publish the port to the host's loopback only (docker run -p 127.0.0.1:4317:4317).`);
   }
 
   const staticAssets = configureStaticRoot(staticRoot, staticDir);
@@ -919,6 +943,93 @@ export function createLocalServer({
     const canonicalPath = canonicalizeWorkspacePath(candidate);
     if (!canonicalPath) return null;
     return workspaceBinding(canonicalPath, statSync(canonicalPath));
+  }
+
+  async function connectAndPersist(providerId, input, existing) {
+    const result = await providerConnections.connect(input, existing);
+    const next = {
+      ...existing,
+      enabled: true,
+      model: result.connection.selectedModel ?? existing.model,
+      baseUrl: result.connection.baseUrl ?? existing.baseUrl,
+      secretEnvName: canonicalSecretEnvName(providerId) ?? existing.secretEnvName,
+      options: existing.options,
+    };
+    const changed = existing.enabled !== next.enabled || existing.model !== next.model
+      || existing.baseUrl !== next.baseUrl || existing.secretEnvName !== next.secretEnvName;
+    const profile = changed ? repository.upsertProviderProfile(next) : existing;
+    return {
+      ...result,
+      connection: providerConnections.connection(providerId, profile),
+      provider: currentProviders().find((item) => item.id === providerId),
+    };
+  }
+
+  // One action that connects whatever this machine already provides: hosted keys
+  // exported into the engine's environment, a loopback Ollama daemon, and a
+  // logged-in CLI. Each provider is attempted independently and a failure is
+  // reported against that provider only -- a missing key must never stop an
+  // installed CLI from being connected. Nothing is guessed: every result names
+  // the evidence it acted on, so "skipped" is actionable rather than mysterious.
+  async function autodetectProviders(body) {
+    const ollamaBaseUrl = typeof body?.ollamaBaseUrl === 'string' && body.ollamaBaseUrl.trim()
+      ? body.ollamaBaseUrl.trim()
+      : DEFAULT_OLLAMA_BASE_URL;
+    const results = [];
+    for (const candidate of AUTODETECT_CANDIDATES) {
+      const { providerId, kind, envName } = candidate;
+      const existing = repository.getProviderProfile(providerId);
+      if (!existing) {
+        results.push({ providerId, kind, status: 'unavailable', detail: 'No provider profile is registered for this engine.' });
+        continue;
+      }
+      try {
+        if (kind === 'hosted') {
+          const apiKey = environment[envName];
+          if (!apiKey || !apiKey.trim()) {
+            results.push({ providerId, kind, status: 'skipped', detail: `${envName} is not set in this engine's environment.` });
+            continue;
+          }
+          const discovered = await providerConnections.discover({ kind, providerId, apiKey: apiKey.trim() }, existing);
+          const model = discovered.models.some((item) => item.id === existing.model)
+            ? existing.model
+            : discovered.models[0]?.id;
+          if (!model) {
+            results.push({ providerId, kind, status: 'failed', detail: 'The credential verified but the provider listed no selectable model.' });
+            continue;
+          }
+          const connected = await connectAndPersist(providerId, { kind, providerId, model }, existing);
+          results.push({ providerId, kind, status: 'connected', model, detail: `Verified ${envName} and selected ${model}.` });
+          continue;
+        }
+        if (kind === 'local') {
+          const discovered = await providerConnections.discover({ kind, providerId, baseUrl: ollamaBaseUrl }, existing);
+          const model = discovered.models.some((item) => item.id === existing.model)
+            ? existing.model
+            : discovered.models[0]?.id;
+          if (!model) {
+            results.push({ providerId, kind, status: 'failed', detail: `${ollamaBaseUrl} answered but has no installed model. Run: ollama pull <model>` });
+            continue;
+          }
+          await connectAndPersist(providerId, { kind, providerId, baseUrl: ollamaBaseUrl, model }, existing);
+          results.push({ providerId, kind, status: 'connected', model, detail: `${ollamaBaseUrl} is serving ${model}.` });
+          continue;
+        }
+        await providerConnections.discover({ kind, providerId }, existing);
+        await connectAndPersist(providerId, { kind, providerId }, existing);
+        results.push({ providerId, kind, status: 'connected', model: null, detail: `${providerId} is installed and logged in.` });
+      } catch (error) {
+        const code = error instanceof ProviderConnectionError ? error.code : null;
+        results.push({
+          providerId,
+          kind,
+          status: code === 'CLI_NOT_INSTALLED' || code === 'CLI_AUTH_REQUIRED' ? 'skipped' : 'failed',
+          ...(code ? { code } : {}),
+          detail: error.message,
+        });
+      }
+    }
+    return { results, connected: results.filter((item) => item.status === 'connected').length };
   }
 
   function currentProviders({ forceCli = false } = {}) {
@@ -2368,27 +2479,13 @@ export function createLocalServer({
       const existing = repository.getProviderProfile(providerId);
       if (!existing) throw new HttpError(404, 'PROVIDER_NOT_FOUND', 'Provider profile was not found.');
       try {
-        const result = await providerConnections.connect(body, existing);
-        const next = {
-          ...existing,
-          enabled: true,
-          model: result.connection.selectedModel ?? existing.model,
-          baseUrl: result.connection.baseUrl ?? existing.baseUrl,
-          secretEnvName: canonicalSecretEnvName(providerId) ?? existing.secretEnvName,
-          options: existing.options,
-        };
-        const changed = existing.enabled !== next.enabled || existing.model !== next.model
-          || existing.baseUrl !== next.baseUrl || existing.secretEnvName !== next.secretEnvName;
-        const profile = changed ? repository.upsertProviderProfile(next) : existing;
-        const provider = currentProviders().find((item) => item.id === providerId);
-        return json(response, 200, {
-          ...result,
-          connection: providerConnections.connection(providerId, profile),
-          provider,
-        }, cors);
+        return json(response, 200, await connectAndPersist(providerId, body, existing), cors);
       } catch (error) {
         throw asProviderConnectionHttpError(error);
       }
+    }
+    if (method === 'POST' && path === '/api/provider-connections/autodetect') {
+      return json(response, 200, await autodetectProviders(await readJson(request).catch(() => ({}))), cors);
     }
     const providerModelsMatch = path.match(/^\/api\/provider-connections\/([^/]+)\/models$/);
     if (providerModelsMatch && method === 'GET') {

@@ -134,11 +134,50 @@ signature and notarization.
 The packaged app embeds its React UI and a loopback-only Node + PostgreSQL
 engine sidecar. No browser, no external Node, no Docker.
 
+### Or run it in Docker
+
+No Node, no Rust, no PostgreSQL on your machine — one container, one port:
+
+```sh
+docker compose up --build
+```
+
+Then open <http://127.0.0.1:4317>. The image builds the workbench and serves it
+from the engine itself, with the bundled PostgreSQL inside the container. Your
+project is mounted at `/workspace`; engine state lives in a named volume, so
+`docker compose down` keeps your graphs.
+
+```sh
+docker run --rm -p 127.0.0.1:4317:4317 \
+  -v aone-execution-data:/data -v "$PWD":/workspace aone-execution
+```
+
+> **Publish to `127.0.0.1` only.** The engine has no authentication, so a bare
+> `-p 4317:4317` hands it to everything that can reach your host. The container
+> has to bind `0.0.0.0` internally for a published port to work at all, which is
+> why `EGE_ALLOW_NON_LOOPBACK_BIND=1` is set in the image and refused everywhere
+> else.
+
+The desktop app is not in the container — Tauri is a native GUI with nothing to
+draw on there. You get the same engine and the same web UI.
+
 ---
 
 ## Configure a provider
 
-Everything is bring-your-own. Open **Settings**:
+Everything is bring-your-own. Open **Settings** and press **Auto-connect** —
+one button that connects whatever this machine already offers:
+
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` exported into the engine's environment
+- an Ollama daemon answering on loopback
+- a Codex CLI that is installed and logged in
+
+Each provider is attempted independently, so a missing key never stops an
+installed CLI from connecting, and every provider it *doesn't* connect says what
+it would need. Nothing is guessed: a model you already configured is kept, and a
+provider only falls back to another model when yours is not actually installed.
+
+Or configure any of them by hand:
 
 | Provider | Plan | Execute | Notes |
 |---|:--:|:--:|---|

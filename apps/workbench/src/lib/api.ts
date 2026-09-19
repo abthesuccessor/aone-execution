@@ -14,6 +14,8 @@ import type {
   ProviderProfile,
   ProviderConnection,
   ProviderConnectionResult,
+  ProviderAutodetectResult,
+  ProviderAutodetectEntry,
   ProviderModel,
   DiscoverProviderConnectionInput,
   ConnectProviderConnectionInput,
@@ -647,6 +649,29 @@ export const api = {
       headers: JSON_HEADERS,
       body: JSON.stringify(input),
     }));
+  },
+
+  async autodetectProviders(): Promise<ProviderAutodetectResult> {
+    const raw = await request<unknown>('/api/provider-connections/autodetect', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    const value = raw as { results?: unknown; connected?: unknown };
+    const results: ProviderAutodetectEntry[] = Array.isArray(value?.results)
+      ? value.results.flatMap((item) => {
+        const entry = item as Partial<ProviderAutodetectEntry>;
+        if (typeof entry?.providerId !== 'string' || typeof entry?.status !== 'string') return [];
+        return [{
+          providerId: entry.providerId,
+          kind: typeof entry.kind === 'string' ? entry.kind : '',
+          status: entry.status as ProviderAutodetectEntry['status'],
+          model: typeof entry.model === 'string' ? entry.model : null,
+          ...(typeof entry.code === 'string' ? { code: entry.code } : {}),
+          detail: typeof entry.detail === 'string' ? entry.detail : '',
+        }];
+      })
+      : [];
+    return { results, connected: typeof value?.connected === 'number' ? value.connected : 0 };
   },
 
   async listProviderModels(providerId: string): Promise<ProviderConnectionResult> {

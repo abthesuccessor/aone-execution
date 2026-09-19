@@ -49,7 +49,7 @@ function shutdown(exitCode = 0) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-console.log('Starting the local Execution Graph workbench');
+console.log('Starting the local aone-execution workbench');
 console.log(`Workbench: http://127.0.0.1:${webPort}`);
 console.log(`Local API:  http://127.0.0.1:${apiPort}`);
 

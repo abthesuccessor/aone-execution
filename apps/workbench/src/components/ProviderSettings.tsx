@@ -20,6 +20,7 @@ import {
   IconKey,
   IconLoader2,
   IconPlugConnected,
+  IconWand,
   IconRefresh,
   IconServer,
   IconTerminal2,
@@ -29,6 +30,7 @@ import type {
   ConnectProviderConnectionInput,
   DiscoverProviderConnectionInput,
   ProviderConnection,
+  ProviderAutodetectResult,
   ProviderConnectionResult,
   ProviderModel,
   ProviderStatus,
@@ -46,6 +48,7 @@ interface ProviderSettingsProps {
   onConnect: (input: ConnectProviderConnectionInput) => Promise<ProviderConnectionResult>;
   onRefreshModels: (providerId: string) => Promise<ProviderConnectionResult>;
   onDisconnect: (providerId: string) => Promise<ProviderConnectionResult>;
+  onAutodetect?: () => Promise<ProviderAutodetectResult>;
 }
 
 export function ProviderSettings({
@@ -54,7 +57,10 @@ export function ProviderSettings({
   onConnect,
   onRefreshModels,
   onDisconnect,
+  onAutodetect,
 }: ProviderSettingsProps) {
+  const [autodetect, setAutodetect] = useState<ProviderAutodetectResult | undefined>();
+  const [autodetecting, setAutodetecting] = useState(false);
   const hostedProviders = useMemo(
     () => providers.filter((provider) => provider.id === 'openai-api' || provider.id === 'anthropic-api'),
     [providers],
@@ -226,6 +232,64 @@ export function ProviderSettings({
 
   return (
     <div className="provider-settings">
+      {onAutodetect && (
+        <div className="provider-autodetect">
+          <Flex align="center" justify="between" gap="3" wrap="wrap">
+            <div>
+              <Text size="2" weight="medium">Connect what this machine already has</Text>
+              <Text as="p" size="1" color="gray">
+                Checks this engine's environment for API keys, a loopback Ollama daemon, and a logged-in CLI.
+                Keys are verified in memory and never written to disk.
+              </Text>
+            </div>
+            <Button
+              size="2"
+              disabled={autodetecting}
+              onClick={async () => {
+                setAutodetecting(true);
+                setError(undefined);
+                setAutodetect(undefined);
+                try {
+                  setAutodetect(await onAutodetect());
+                } catch (cause) {
+                  setError(cause instanceof Error ? cause.message : 'Auto-connect failed.');
+                } finally {
+                  setAutodetecting(false);
+                }
+              }}
+            >
+              {autodetecting ? <IconLoader2 size={14} className="spin-icon" /> : <IconWand size={14} />}
+              {autodetecting ? 'Detecting…' : 'Auto-connect'}
+            </Button>
+          </Flex>
+
+          {autodetect && (
+            <div className="provider-autodetect-results" role="status">
+              <Text size="1" weight="medium">
+                {autodetect.connected === 0
+                  ? 'Nothing was connected. Each provider below says what it needs.'
+                  : `Connected ${autodetect.connected} of ${autodetect.results.length} providers.`}
+              </Text>
+              <ul>
+                {autodetect.results.map((entry) => (
+                  <li key={entry.providerId}>
+                    <Badge
+                      size="1"
+                      color={entry.status === 'connected' ? 'green' : entry.status === 'failed' ? 'red' : 'gray'}
+                    >
+                      {entry.status}
+                    </Badge>
+                    <Text size="1" weight="medium">{entry.providerId}</Text>
+                    {entry.model && <Text size="1" color="gray">{entry.model}</Text>}
+                    <Text size="1" color="gray">{entry.detail}</Text>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       <Tabs.Root value={mode} onValueChange={(value) => {
         setMode(value as ProviderMode);
         setError(undefined);

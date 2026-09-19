@@ -13,9 +13,19 @@ if (isEntrypoint) {
     skillsRoot: process.env.EGE_SKILLS_ROOT,
     workspaceRoot: process.env.EGE_WORKSPACE_ROOT || process.cwd(),
     staticRoot: process.env.EGE_STATIC_ROOT,
+    // Comma-separated extra origins the browser may call from, for a container
+    // published on a port other than the default web port.
+    allowedBrowserOrigins: (process.env.EGE_BROWSER_ORIGIN || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+    allowNonLoopbackBind: process.env.EGE_ALLOW_NON_LOOPBACK_BIND === '1',
   });
   const address = await localServer.start();
-  process.stdout.write(`Execution Graph local server listening on ${localServer.address}\n`);
+  process.stdout.write(`aone-execution engine listening on ${localServer.address}\n`);
+  if (process.env.EGE_ALLOW_NON_LOOPBACK_BIND === '1') {
+    process.stdout.write('This engine has no authentication. Publish its port to the host loopback only (-p 127.0.0.1:4317:4317).\n');
+  }
 
   const shutdown = async () => {
     await localServer.close();

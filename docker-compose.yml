@@ -1,0 +1,28 @@
+# Run aone-execution in a container. See the Dockerfile for why the desktop app
+# is not included and why the port is published to loopback only.
+#
+#   docker compose up --build
+#   open http://127.0.0.1:4317
+
+services:
+  aone-execution:
+    build: .
+    image: aone-execution
+    # 127.0.0.1 is load-bearing: the engine has no authentication, so a bare
+    # "4317:4317" would expose it to every machine that can reach this host.
+    ports:
+      - "127.0.0.1:4317:4317"
+    volumes:
+      - aone-execution-data:/data
+      # The project you want the graph to work on. Read-write, because an
+      # approved execution edits files in it.
+      - ./:/workspace
+    environment:
+      # Bring your own provider. Anything set here is picked up by Auto-connect
+      # in Settings; leave them unset to configure through the UI instead.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  aone-execution-data:

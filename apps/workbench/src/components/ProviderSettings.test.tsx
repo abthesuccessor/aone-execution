@@ -7,6 +7,7 @@ import type {
   ConnectProviderConnectionInput,
   DiscoverProviderConnectionInput,
   ProviderConnection,
+  ProviderAutodetectResult,
   ProviderConnectionResult,
   ProviderStatus,
 } from '../lib/types';
@@ -112,12 +113,14 @@ function renderSettings({
   onConnect = vi.fn(),
   onRefresh = vi.fn(),
   onDisconnect = vi.fn(),
+  onAutodetect,
 }: {
   providers?: ProviderStatus[];
   onDiscover?: (input: DiscoverProviderConnectionInput) => Promise<ProviderConnectionResult>;
   onConnect?: (input: ConnectProviderConnectionInput) => Promise<ProviderConnectionResult>;
   onRefresh?: (providerId: string) => Promise<ProviderConnectionResult>;
   onDisconnect?: (providerId: string) => Promise<ProviderConnectionResult>;
+  onAutodetect?: () => Promise<ProviderAutodetectResult>;
 } = {}) {
   function Harness() {
     const [items, setItems] = useState(providers);
@@ -134,6 +137,7 @@ function renderSettings({
           onConnect={(input) => apply(onConnect(input))}
           onRefreshModels={(providerId) => apply(onRefresh(providerId))}
           onDisconnect={(providerId) => apply(onDisconnect(providerId))}
+          {...(onAutodetect ? { onAutodetect } : {})}
         />
       </Theme>
     );
@@ -145,6 +149,46 @@ describe('ProviderSettings', () => {
   afterEach(() => {
     cleanup();
     delete window.egeDesktop;
+  });
+
+
+  it('auto-connects everything available and explains each provider it skipped', async () => {
+    const user = userEvent.setup();
+    const onAutodetect = vi.fn(async () => ({
+      connected: 1,
+      results: [
+        { providerId: 'openai-api', kind: 'hosted', status: 'skipped' as const, model: null, detail: 'OPENAI_API_KEY is not set in this engine\'s environment.' },
+        { providerId: 'ollama', kind: 'local', status: 'connected' as const, model: 'gemma4:E4B', detail: 'http://127.0.0.1:11434 is serving gemma4:E4B.' },
+        { providerId: 'codex-cli', kind: 'cli', status: 'failed' as const, code: 'CLI_AUTH_REQUIRED', model: null, detail: 'codex-cli is installed but its authentication status is not ready.' },
+      ],
+    }));
+    renderSettings({ onAutodetect });
+
+    await user.click(screen.getByRole('button', { name: /auto-connect/i }));
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent('Connected 1 of 3 providers.');
+    // A skipped provider must say what would make it work, not just fail quietly.
+    expect(status).toHaveTextContent("OPENAI_API_KEY is not set in this engine's environment.");
+    expect(status).toHaveTextContent('gemma4:E4B');
+    expect(status).toHaveTextContent('codex-cli is installed but its authentication status is not ready.');
+    expect(onAutodetect).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed auto-connect without claiming anything was connected', async () => {
+    const user = userEvent.setup();
+    const onAutodetect = vi.fn(async () => { throw new Error('The engine refused the request.'); });
+    renderSettings({ onAutodetect });
+
+    await user.click(screen.getByRole('button', { name: /auto-connect/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The engine refused the request.');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('omits the auto-connect control when the host does not supply one', () => {
+    renderSettings({});
+    expect(screen.queryByRole('button', { name: /auto-connect/i })).toBeNull();
   });
 
   it('keeps hosted keys masked and session-only, discovers real models, then connects the selected provider', async () => {
