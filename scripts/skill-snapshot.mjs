@@ -8,7 +8,7 @@ const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const contained = (root, path) => { const rel = relative(root, path); return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)); };
 const normalized = (path) => path.split('\\').join('/');
 
-async function treeFiles(root) {
+export async function treeFiles(root) {
   const files = [];
   async function visit(directory) {
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -106,4 +106,43 @@ export async function ingestSkillSnapshot({ sources, targetRoot, allowShrink = f
     if (backedUp) await rm(backup, { recursive: true, force: true });
     return manifest;
   } finally { await rm(stage, { recursive: true, force: true }); }
+}
+
+// Re-record a manifest from the snapshot currently on disk.
+//
+// A snapshot is a provenance record: every file is pinned by SHA-256 so a build
+// can prove the catalog it ships is the one that was imported. Resealing breaks
+// that chain deliberately, and exists for one situation -- the files on disk are
+// the only surviving copy and some of them were damaged in transit (a backup, a
+// sync, a copy tool that mangled binaries), so re-importing from the original
+// sources is no longer possible.
+//
+// It therefore records that it happened. `resealed` names every file whose bytes
+// no longer match what was imported, so a resealed catalog can never be mistaken
+// for a pristine one.
+export async function resealSkillSnapshot(root) {
+  root = resolve(root);
+  const previous = JSON.parse(await readFile(join(root, '.catalog-manifest.json'), 'utf8'));
+  const files = await treeFiles(root);
+  const before = new Map((previous.files || []).map((file) => [file.path, file]));
+  const changed = files
+    .filter((file) => { const old = before.get(file.path); return old && old.sha256 !== file.sha256; })
+    .map((file) => ({ path: file.path, size: file.size, importedSize: before.get(file.path).size }));
+  const added = files.filter((file) => !before.has(file.path)).map((file) => file.path);
+  const removed = [...before.keys()].filter((path) => !files.some((file) => file.path === path));
+
+  const { items } = await new SkillCatalog({ root }).list();
+  if (!items.length || items.some((item) => !item.valid)) {
+    throw new Error(`Refusing to reseal an invalid catalog:\n${items.filter((item) => !item.valid).map((item) => `  ${item.relativePath}: ${item.validationErrors.join('; ')}`).join('\n')}`);
+  }
+  const skills = items.map((item) => {
+    const old = (previous.skills || []).find((pin) => pin.path === item.relativePath);
+    return { path: item.relativePath, sha256: item.contentDigest, packageDigest: item.packageDigest, files: item.packageFiles, origins: old?.origins ?? [] };
+  }).sort((a, b) => a.path.localeCompare(b.path));
+
+  const manifest = { ...previous, version: 2, sources: previous.sources ?? [], skills, files,
+    resealed: { at: new Date().toISOString(), importedAt: previous.generatedAt ?? null, changed, added, removed } };
+  await writeFile(join(root, '.catalog-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  await verifySkillSnapshot(root);
+  return manifest;
 }

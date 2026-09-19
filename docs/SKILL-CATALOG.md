@@ -63,6 +63,54 @@ When the reduction is genuinely what you want:
 EGE_SKILLS_ALLOW_SHRINK=1 npm run skills:ingest
 ```
 
+## Repairing a damaged snapshot
+
+`skills:ingest` rebuilds from the original sources. When those sources are gone
+and the snapshot on disk is the only surviving copy, a damaged file leaves you
+stuck: verification fails, and re-importing would replace a large catalog with
+whatever little remains.
+
+This is not hypothetical. Copying a tree with a tool that mishandles binary
+files silently truncates them — a 436 KB `.gz` becomes 32 bytes, PNG assets
+become 50-100 byte stubs — while every `SKILL.md`, being text, survives intact.
+
+`skills:reseal` re-signs the manifest from the files currently on disk:
+
+```sh
+EGE_SKILLS_CONFIRM_RESEAL=1 npm run skills:reseal
+```
+
+It refuses to run without that variable, because it deliberately breaks the
+provenance chain the manifest exists to provide. It validates every package
+first and refuses to seal an invalid catalog.
+
+The new manifest records what it did under a `resealed` key — when it ran, when
+the original import was, and every file whose bytes no longer match what was
+imported:
+
+```json
+{
+  "resealed": {
+    "at": "2026-09-19T07:41:32.101Z",
+    "importedAt": "2026-09-12T06:27:09.260Z",
+    "changed": [
+      {
+        "path": "codex/drawio-skill/data/shape-index.json.gz",
+        "size": 32,
+        "importedSize": 436148
+      }
+    ],
+    "added": [],
+    "removed": []
+  }
+}
+```
+
+A resealed catalog can therefore never be mistaken for a pristine import, and
+the damaged files stay named rather than quietly re-signed. Check that list: a
+truncated asset is cosmetic, but a truncated data file means that skill has lost
+something it needs.
+
 ## Running without a catalog
 
 A catalog is optional. The app builds and runs with none — you simply get no

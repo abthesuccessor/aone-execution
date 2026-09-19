@@ -35,7 +35,8 @@
     "validate:protobuf": "cd docs/contracts && buf format --diff --exit-code && buf lint && buf build",
     "validate:ddl": "bash scripts/validate_ddl.sh",
     "skills:ingest": "node scripts/ingest-skills.mjs",
-    "skills:verify": "npm --workspace @aone-execution/desktop run sync:skills"
+    "skills:verify": "npm --workspace @aone-execution/desktop run sync:skills",
+    "skills:reseal": "node scripts/reseal-skills.mjs"
   },
   "devDependencies": {
     "@asyncapi/parser": "3.6.1",

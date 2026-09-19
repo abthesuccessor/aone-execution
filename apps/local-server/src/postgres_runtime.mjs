@@ -64,7 +64,14 @@ export async function openNativePostgres(options = {}) {
     if (ephemeral) await rm(root, { recursive: true, force: true });
   };
   try {
-    const version = (await execute(binaries.postgres, ['--version'], { timeout: 5000 })).stdout.trim();
+    // 30s, not 5s: this is the first execution of a ~19 MB universal Mach-O
+    // binary that was just copied into place by the installer, so macOS
+    // validates and pages in the whole image before main() runs. Measured cold
+    // on an M-series Mac that costs 3.2-3.4s with nothing else running, which
+    // left a 5s budget almost no headroom -- and it is spent on first launch
+    // after install, when the machine is busiest. A genuinely stuck binary
+    // still fails, just not a merely cold one.
+    const version = (await execute(binaries.postgres, ['--version'], { timeout: 30000 })).stdout.trim();
     if (!version.endsWith(` ${POSTGRES_VERSION}`)) throw new Error(`Expected pinned native PostgreSQL ${POSTGRES_VERSION}; found ${version}.`);
     let credentials;
     try { credentials = JSON.parse(await readFile(credentialsPath, 'utf8')); }
