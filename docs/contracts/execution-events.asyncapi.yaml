@@ -1,0 +1,312 @@
+asyncapi: 3.1.0
+info:
+  title: Execution Graph Public Events
+  version: 1.0.0
+  description: >-
+    At-least-once tenant-scoped lifecycle notifications. Consumers deduplicate by
+    CloudEvents id and order events for one execution by execution_sequence. The transport
+    is not the canonical execution history. This public export edge uses one wildcarded
+    regional stream, not one stream per tenant; exact tenant subjects and bounded consumers
+    are provisioned only for authorized subscriptions.
+defaultContentType: application/json
+servers:
+  regional:
+    host: events.{region}.execution-graph.example:4222
+    protocol: nats
+    description: >-
+      TLS-protected regional NATS JetStream export endpoint. Broker credentials restrict a
+      subscriber to its exact authenticated tenant subject. The internal runtime and
+      scheduler do not use this tenant-shaped topology.
+channels:
+  executionLifecycle:
+    address: tenants.{tenantId}.execution.lifecycle.v1
+    parameters:
+      tenantId:
+        description: >-
+          Opaque tenant identifier assigned after authentication. The publisher derives this
+          parameter plus header and payload tenant_id from the same authorized projection
+          context; all three MUST match. Clients cannot supply or override any of them.
+    messages:
+      executionEvent:
+        $ref: '#/components/messages/ExecutionEvent'
+operations:
+  consumeExecutionLifecycle:
+    action: receive
+    channel:
+      $ref: '#/channels/executionLifecycle'
+    summary: Consume authorized execution lifecycle projections.
+    description: >-
+      The export service creates quota-bounded, inactivity-expiring consumers on the shared
+      regional stream. It rejects any authenticated tenant/channel/header/payload mismatch.
+components:
+  messages:
+    ExecutionEvent:
+      name: ExecutionEventV1
+      title: Execution lifecycle event
+      correlationId:
+        location: $message.payload#/execution_id
+      headers:
+        $ref: '#/components/schemas/Headers'
+      payload:
+        $ref: '#/components/schemas/ExecutionEventEnvelope'
+  schemas:
+    UuidV7:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    Sha256:
+      type: string
+      pattern: '^sha256:[a-f0-9]{64}$'
+    Headers:
+      type: object
+      additionalProperties: false
+      required: [traceparent, tenant_id]
+      properties:
+        traceparent:
+          type: string
+        tenant_id:
+          $ref: '#/components/schemas/UuidV7'
+        data_classification:
+          type: string
+          enum: [PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED]
+    ExecutionEventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - specversion
+        - id
+        - source
+        - type
+        - time
+        - subject
+        - tenant_id
+        - environment_id
+        - home_cell_id
+        - routing_epoch
+        - execution_id
+        - execution_sequence
+        - graph_id
+        - graph_version_id
+        - compilation_id
+        - compiled_plan_id
+        - plan_hash
+        - plan_envelope_hash
+        - policy_snapshot_id
+        - execution_mode
+        - replay_operation
+        - adapter_effect_mode
+        - data
+      properties:
+        specversion:
+          const: '1.0'
+        id:
+          $ref: '#/components/schemas/UuidV7'
+          description: Globally unique CloudEvents id used for deduplication.
+        source:
+          type: string
+          format: uri-reference
+        type:
+          type: string
+          enum:
+            - io.executiongraph.execution.status_changed.v1
+            - io.executiongraph.activation.status_changed.v1
+            - io.executiongraph.approval.status_changed.v1
+        time:
+          type: string
+          format: date-time
+        subject:
+          type: string
+        datacontenttype:
+          const: application/json
+        tenant_id:
+          $ref: '#/components/schemas/UuidV7'
+        environment_id:
+          $ref: '#/components/schemas/UuidV7'
+        home_cell_id:
+          type: string
+        routing_epoch:
+          type: integer
+          minimum: 1
+        execution_id:
+          $ref: '#/components/schemas/UuidV7'
+        execution_sequence:
+          type: integer
+          minimum: 1
+        graph_id:
+          $ref: '#/components/schemas/UuidV7'
+        graph_version_id:
+          $ref: '#/components/schemas/UuidV7'
+        compilation_id:
+          $ref: '#/components/schemas/UuidV7'
+        compiled_plan_id:
+          $ref: '#/components/schemas/UuidV7'
+        plan_hash:
+          $ref: '#/components/schemas/Sha256'
+        plan_envelope_hash:
+          $ref: '#/components/schemas/Sha256'
+        policy_snapshot_id:
+          $ref: '#/components/schemas/UuidV7'
+        execution_mode:
+          enum: [LIVE, REPLAY, SIMULATION]
+        replay_operation:
+          enum: [NONE, STATE_REBUILD, EXACT_REPLAY, FORKED_REPLAY]
+        adapter_effect_mode:
+          enum: [SUBSTITUTE_RECORDED, REEXECUTE_READ_ONLY, REEXECUTE_AUTHORIZED_EFFECT, FORBID]
+        replay_approval_id:
+          $ref: '#/components/schemas/UuidV7'
+        data:
+          $ref: '#/components/schemas/EventData'
+      allOf:
+        - if:
+            properties:
+              type: { const: io.executiongraph.execution.status_changed.v1 }
+          then:
+            properties:
+              data: { $ref: '#/components/schemas/ExecutionStatusData' }
+        - if:
+            properties:
+              type: { const: io.executiongraph.activation.status_changed.v1 }
+          then:
+            properties:
+              data: { $ref: '#/components/schemas/ActivationStatusData' }
+        - if:
+            properties:
+              type: { const: io.executiongraph.approval.status_changed.v1 }
+          then:
+            properties:
+              data: { $ref: '#/components/schemas/ApprovalData' }
+        - if:
+            properties:
+              replay_operation: { const: NONE }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: REEXECUTE_AUTHORIZED_EFFECT }
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { enum: [FORBID, REEXECUTE_READ_ONLY] }
+            not: { required: [replay_approval_id] }
+        - if:
+            properties:
+              replay_operation: { const: STATE_REBUILD }
+            required: [replay_operation]
+          then:
+            properties:
+              execution_mode: { const: REPLAY }
+              adapter_effect_mode: { const: FORBID }
+            not: { required: [replay_approval_id] }
+        - if:
+            properties:
+              replay_operation: { const: EXACT_REPLAY }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { const: REEXECUTE_READ_ONLY }
+            not: { required: [replay_approval_id] }
+        - if:
+            properties:
+              replay_operation: { const: FORKED_REPLAY }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+                not: { required: [replay_approval_id] }
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { enum: [FORBID, REEXECUTE_READ_ONLY] }
+                not: { required: [replay_approval_id] }
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: FORBID }
+                not: { required: [replay_approval_id] }
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: REEXECUTE_AUTHORIZED_EFFECT }
+                  replay_approval_id: { $ref: '#/components/schemas/UuidV7' }
+                required: [replay_approval_id]
+    EventData:
+      oneOf:
+        - $ref: '#/components/schemas/ExecutionStatusData'
+        - $ref: '#/components/schemas/ActivationStatusData'
+        - $ref: '#/components/schemas/ApprovalData'
+      discriminator: kind
+    ExecutionStatusData:
+      type: object
+      additionalProperties: false
+      required: [kind, status]
+      properties:
+        kind: { const: EXECUTION_STATUS }
+        status:
+          type: string
+          enum: [ADMITTED, RUNNING, SUSPENDED, CANCELLING, SUCCEEDED, FAILED, TIMED_OUT, CANCELLED, CANCELLED_WITH_EFFECTS, QUARANTINED]
+        reason_code:
+          type: string
+        output_artifact_id:
+          $ref: '#/components/schemas/UuidV7'
+        error_artifact_id:
+          $ref: '#/components/schemas/UuidV7'
+        state_version:
+          type: integer
+    ActivationStatusData:
+      type: object
+      additionalProperties: false
+      required: [kind, activation_id, status]
+      properties:
+        kind: { const: ACTIVATION_STATUS }
+        activation_id:
+          $ref: '#/components/schemas/Sha256'
+        node_id:
+          type: string
+        status:
+          type: string
+          enum: [BLOCKED, READY, RUNNING, RETRY_WAIT, SUCCEEDED, FAILED, TIMED_OUT, CANCELLED, SKIPPED, UNKNOWN_EFFECT]
+        attempt_ordinal:
+          type: integer
+          minimum: 1
+        safe_error_code:
+          type: string
+        usage:
+          type: object
+          properties:
+            input_tokens: { type: integer }
+            output_tokens: { type: integer }
+            cost_microunits: { type: integer }
+      allOf:
+        - if:
+            properties:
+              status:
+                enum: [RUNNING, RETRY_WAIT, SUCCEEDED, FAILED, TIMED_OUT, UNKNOWN_EFFECT]
+            required: [status]
+          then:
+            required: [attempt_ordinal]
+    ApprovalData:
+      type: object
+      additionalProperties: false
+      required: [kind, approval_id, proposal_hash, status, expires_at]
+      properties:
+        kind: { const: APPROVAL_STATUS }
+        approval_id:
+          $ref: '#/components/schemas/UuidV7'
+        proposal_hash:
+          $ref: '#/components/schemas/Sha256'
+        evidence_manifest_hash:
+          $ref: '#/components/schemas/Sha256'
+        status:
+          type: string
+          enum: [REQUESTED, APPROVED, DENIED, EXPIRED, REVOKED]
+        expires_at:
+          type: string
+          format: date-time
+        resolver_actor_id:
+          type: string
+        resolution_reason:
+          type: string

@@ -1,0 +1,80 @@
+{
+  "date": "2026-09-13",
+  "scope": "UI and automated tests use disposable PostgreSQL. Closed development and desktop SQLite stores separately migrated with original files preserved.",
+  "browser": {
+    "provider": "Codex in-app browser",
+    "url": "http://127.0.0.1:50571/",
+    "settingsSaveRevision": 3,
+    "nodeDraftRevision": 3,
+    "checks": [
+      "Settings and all four engineering tabs render",
+      "Changed Caveman to Lite, enabled memory, set context budget 48000, enabled fixture skill; saved revision 3",
+      "Configured Implementation review required with Evidence reviewer and separate Ollama provider; saved draft 3",
+      "Reloaded page and confirmed review enabled, reviewer selected and Ollama provider persisted"
+    ],
+    "screenshot": "codex-settings.png",
+    "limits": [
+      "No live provider call or token savings benchmark",
+      "Screenshot viewport clips the right edge; interaction assertions are from accessibility state",
+      "Earlier Chrome screenshots predate the user browser correction and are labeled separately"
+    ]
+  },
+  "automated": {
+    "workbench": {
+      "tests": 131,
+      "passed": 131,
+      "files": 28
+    },
+    "desktopNodeTests": {
+      "tests": 10,
+      "passed": 10
+    },
+    "desktopRustTests": {
+      "tests": 2,
+      "passed": 2
+    },
+    "rustCheck": "passed",
+    "backend": {
+      "tests": 179,
+      "passed": 179,
+      "failed": 0,
+      "skipped": 0
+    },
+    "workbenchTypecheck": "passed",
+    "workbenchBuild": "passed with existing Vite large-chunk warning",
+    "contracts": {
+      "versions": "passed",
+      "architecture": "passed",
+      "schemas": "passed",
+      "openapi": "passed",
+      "asyncapi": "passed",
+      "protobuf": "passed",
+      "postgresqlDdl": "passed against PostgreSQL 18.4 with pinned image digest"
+    },
+    "productionNpmDependencyAudit": {
+      "reportedVulnerabilities": 0,
+      "limits": "Does not assess the bundled PostgreSQL server or native shared libraries"
+    }
+  },
+  "productionReadiness": false,
+  "existingDataImports": [
+    {
+      "store": "development",
+      "graphs": 2,
+      "rows": 163,
+      "tables": 15,
+      "objects": 1,
+      "originalPreserved": true,
+      "reopenedAndTableCountsVerified": true
+    },
+    {
+      "store": "desktop",
+      "graphs": 1,
+      "rows": 188,
+      "tables": 15,
+      "objects": 0,
+      "originalPreserved": true,
+      "reopenedAndTableCountsVerified": true
+    }
+  ]
+}

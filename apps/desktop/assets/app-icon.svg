@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Graph Engineering desktop app icon">
+  <defs>
+    <linearGradient id="background" x1="120" y1="80" x2="900" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14262c"/>
+      <stop offset="1" stop-color="#091216"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="250" y1="220" x2="770" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#68f5e1"/>
+      <stop offset="1" stop-color="#17a7c7"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="13" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="218" fill="url(#background)"/>
+  <rect x="63" y="63" width="898" height="898" rx="197" fill="none" stroke="#31535b" stroke-width="12"/>
+  <g opacity="0.16" stroke="#7deadd" stroke-width="4">
+    <path d="M170 330h684M170 512h684M170 694h684"/>
+    <path d="M330 170v684M512 170v684M694 170v684"/>
+  </g>
+  <g fill="none" stroke="url(#signal)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M306 300 512 430l206-130"/>
+    <path d="M512 430v230"/>
+    <path d="m306 724 206-64 206 64"/>
+  </g>
+  <g fill="#0d1b20" stroke="url(#signal)" stroke-width="27" filter="url(#glow)">
+    <circle cx="306" cy="300" r="73"/>
+    <circle cx="718" cy="300" r="73"/>
+    <circle cx="306" cy="724" r="73"/>
+    <circle cx="718" cy="724" r="73"/>
+    <path d="m512 337 91 52v104l-91 53-91-53V389z"/>
+    <circle cx="512" cy="660" r="67"/>
+  </g>
+  <g fill="#d8fffa">
+    <circle cx="306" cy="300" r="18"/>
+    <circle cx="718" cy="300" r="18"/>
+    <circle cx="306" cy="724" r="18"/>
+    <circle cx="718" cy="724" r="18"/>
+    <circle cx="512" cy="441" r="25"/>
+    <circle cx="512" cy="660" r="20"/>
+  </g>
+</svg>

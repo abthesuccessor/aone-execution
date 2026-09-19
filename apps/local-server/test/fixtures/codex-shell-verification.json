@@ -1,0 +1,12 @@
+{
+  "actual": {
+    "command": "/bin/bash -c \"cmp -s verification.txt <(printf 'WORKBENCH_EXECUTION_OK\\\\n'); status=\"'$?; printf '\"'exit status: %d\\\\n' \\\"\"'$status\"; exit \"$status\"'",
+    "exitCode": 0,
+    "status": "PASS"
+  },
+  "reported": {
+    "command": "cmp -s verification.txt <(printf 'WORKBENCH_EXECUTION_OK\\n'); status=$?; printf 'exit status: %d\\n' \"$status\"; exit \"$status\"",
+    "status": "PASS",
+    "details": "Executed under Bash; printed `exit status: 0` and exited 0."
+  }
+}

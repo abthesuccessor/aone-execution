@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://execution-graph.local/schemas/node-review/v1",
+  "title": "Optional local node review gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["required", "reviewerNodeIds"],
+  "properties": {
+    "required": { "type": "boolean" },
+    "reviewerNodeIds": {
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "providerId": { "enum": ["openai-api", "anthropic-api", "ollama"] }
+  },
+  "allOf": [{
+    "if": { "properties": { "required": { "const": true } } },
+    "then": { "properties": { "reviewerNodeIds": { "minItems": 1 } } }
+  }],
+  "$comment": "Runtime validation additionally requires each reviewer ID to identify another node in the same draft. Review references never create execution dependencies."
+}

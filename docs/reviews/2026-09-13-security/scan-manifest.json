@@ -1,0 +1,146 @@
+{
+  "documentType": "codex-security.scan-manifest",
+  "scan": {
+    "artifacts": [
+      {
+        "mediaType": "application/json",
+        "path": "findings.json",
+        "sha256": "7f33b86f7e14992a3323fb741d2fcd380edacfee10173e5c32ea1c36eaff8247"
+      },
+      {
+        "mediaType": "application/json",
+        "path": "coverage.json",
+        "sha256": "7e358fe77cf7eb42f31151393ae208dd5aa85f5710f38353cf94240ff81d3301"
+      }
+    ],
+    "completedAt": "2026-09-13T12:38:00.691310Z",
+    "coverageRef": "coverage.json",
+    "findingsRef": "findings.json",
+    "id": "24480af6-94e2-4bff-a6ed-d7617d78da4e",
+    "preservedSources": {
+      "checkpoints/0ff4a3c0d0b10fdaf9dab185c02db6152ab038c73b74c2aa810c89428d80dba7.json": "b4c60c25517bb789bbba7a802b242c6178144193eac49627f5eae7b57103c10f",
+      "checkpoints/18b9b44809805102f2934c738f3948135d702cb60e19d78d4cb78e1b27175ae4.json": "027f8112f68d8af9228b11a62bc2dde43ae9e82227841d78b720a0577374b2a4",
+      "checkpoints/454bbb8ae531ef8fbdd00084c2f0ce9379b7c57ad87045919b5f3edc108e0414.json": "67c38f7d660783386948fdebfe50987c37137d3cb492d69b02c529e9912243a9",
+      "checkpoints/98fed6d4f0e216776ebee16902a6ecdabc4b2e9ea60ac98900aed86262bf9b75.json": "83ce3c1513650b6b9e441a2e600eb397b285758667ce12977272da4ceeff37b8",
+      "checkpoints/a548703a4f05fc1c0bc0f08a0aebd75ca535ef1652b54e5fee08a40e5a2d6769.json": "a548703a4f05fc1c0bc0f08a0aebd75ca535ef1652b54e5fee08a40e5a2d6769",
+      "checkpoints/bb4e9bd6155885f0a3b989cf1d401c48c2c8baa3c60a34af135c8e823d2a22c9.json": "d436c754c6138cf65ba88663b662a7957c7efe4c292df9cefcbdc1cefe25d1bf",
+      "checkpoints/c4f0b1a0a3237ccdfa91c67135aec96e8cb51bebee307083b68d560d6945e2c6.json": "84239032fdcd1dfdb0edce6273611d98e43f513108ce979f77253a5389587bcd"
+    },
+    "producer": {
+      "name": "codex-security-plugin",
+      "version": "0.1.24"
+    },
+    "scope": {
+      "artifactsReviewed": [
+        "apps/local-server/src/catalog_routes.mjs",
+        "apps/local-server/src/chat_adapters.mjs",
+        "apps/local-server/src/chat_routes.mjs",
+        "apps/local-server/src/embedded.mjs",
+        "apps/local-server/src/engineering_environment.mjs",
+        "apps/local-server/src/engineering_proposals.mjs",
+        "apps/local-server/src/evidence.mjs",
+        "apps/local-server/src/execution_adapters.mjs",
+        "apps/local-server/src/harness_context_compaction.mjs",
+        "apps/local-server/src/harness_memory.mjs",
+        "apps/local-server/src/harness_memory_provenance.mjs",
+        "apps/local-server/src/harness_memory_routes.mjs",
+        "apps/local-server/src/harness_memory_store.mjs",
+        "apps/local-server/src/harness_runner.mjs",
+        "apps/local-server/src/index.mjs",
+        "apps/local-server/src/memory_adapters.mjs",
+        "apps/local-server/src/object_store.mjs",
+        "apps/local-server/src/provider_connections.mjs",
+        "apps/local-server/src/research_policy.mjs",
+        "apps/local-server/src/skills.mjs",
+        "apps/local-server/src/terminal_routes.mjs",
+        "apps/local-server/src/trace_data.mjs",
+        "apps/desktop/src/sidecar.mjs",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src-tauri/tauri.conf.json",
+        "apps/desktop/src-tauri/capabilities/default.json",
+        "apps/workbench/src/lib/desktop.ts",
+        "apps/workbench/src/lib/terminal-api.ts",
+        "apps/workbench/src/lib/chat-api.ts",
+        "apps/workbench/src/components/TerminalPanel.tsx",
+        "apps/workbench/src/main.tsx",
+        "apps/workbench/vite.config.ts"
+      ],
+      "excludePaths": [],
+      "includePaths": [
+        "."
+      ],
+      "limitations": [
+        "Current checkout has no commits; source evidence is specific to the unversioned snapshot.",
+        "Coverage is partial, with explicit unreviewed and runtime gaps; no absence-of-vulnerabilities guarantee.",
+        "Cross-account API exploit and Python malicious import not executed.",
+        "Existing tests do not cover newly identified lifecycle, release and security failure modes."
+      ],
+      "runtimeStatus": "151 existing server tests and 122 workbench tests passed; TypeScript typecheck passed. Inert temporary Git fixture reproduced ancestor-symlink external artifact capture. No live provider or native packaged-app test performed.",
+      "summary": "Partial source-backed production-readiness audit of current core desktop/local-engine workbench; 32 fully security-reviewed files plus selective inspection of larger modules. Generated gallery, bundled skill corpus, dependencies and generated binaries not exhaustively audited.",
+      "validationMode": "independent static baseline and architecture review; parent source validation; one inert local containment reproduction"
+    },
+    "sealedAt": "2026-09-13T12:38:00.691310Z",
+    "startedAt": "2026-09-13T12:29:16.592174Z",
+    "status": "completed",
+    "target": {
+      "displayName": "execution-graph-engineering",
+      "kind": "directory_snapshot",
+      "snapshotDigest": "codex-security-snapshot/v1:sha256:5c47f9fdca816b1eb8021f7be429143b5291b5a744c01721dd53232feab37cba",
+      "targetId": "target_sha256_65bcca0c8304f126361b4e983cd76aa3ac1e9f2cce6eeab9d1fad8f72c7ee953"
+    },
+    "threatModel": {
+      "assets": [
+        "Selected project contents and filesystem identity; plans pin the selected binding and baseline, and admitted execution rechecks folder identity and baseline before continuing (apps/local-server/src/server.mjs:1066, apps/local-server/src/server.mjs:1077, apps/local-server/src/server.mjs:1088).",
+        "Plan versions, graph revisions, approval hashes, execution state, chat/history, accepted memory, and diagnostic traces stored in the same LocalRepository SQLite database. The constructor enables foreign keys, WAL, and a 5000 ms busy timeout; it does not establish a separate database identity boundary (apps/local-server/src/database.mjs:280). Desktop SQLite location is Tauri app_data/engine-data/local.db, direct API default is process.cwd()/.ege/local.db, and embedded default is dataDir/state/local.db (apps/desktop/src-tauri/src/main.rs:140, apps/desktop/src-tauri/src/main.rs:163, apps/local-server/src/index.mjs:8, apps/local-server/src/embedded.mjs:41).",
+        "Uploaded source originals and derived evidence at objectRoot/objects/<first-two-digest-characters>/<next-two-digest-characters>/<sha256>. Reads verify SHA-256 and reject non-regular or final symlink files; writes use private temporary files, fsync, and hard-link no-overwrite publication (apps/local-server/src/object_store.mjs:61, apps/local-server/src/object_store.mjs:71, apps/local-server/src/object_store.mjs:93, apps/local-server/src/object_store.mjs:144).",
+        "Hosted provider credentials held in the running ProviderConnectionManager private map; planning resolves a session secret first, then only the provider's canonical OPENAI_API_KEY or ANTHROPIC_API_KEY environment reference. OpenAI recipients are api.openai.com/v1/models and /v1/responses; Anthropic recipients are api.anthropic.com/v1/models and /v1/messages (apps/local-server/src/provider_connections.mjs:5, apps/local-server/src/provider_connections.mjs:235, apps/local-server/src/provider_connections.mjs:250, apps/local-server/src/planners.mjs:77, apps/local-server/src/planners.mjs:612, apps/local-server/src/planners.mjs:664).",
+        "CLI account context and host capabilities: Codex subprocesses inherit PATH, HOME, CODEX_HOME, temporary-directory, locale, certificate and proxy settings, preserving access needed by its existing login context. The adapter does not create an OS-user, container or network-egress boundary (apps/local-server/src/execution_adapters.mjs:278, apps/local-server/README.md:361).",
+        "Optional remote memory session credentials, explicitly retained record contents, provenance digests and remote identifiers. Credentials remain in a per-graph in-memory map; synchronized content is sent to a user-configured HTTPS or loopback HTTP endpoint (apps/local-server/src/harness_memory.mjs:16, apps/local-server/src/harness_memory.mjs:30, apps/local-server/src/harness_memory.mjs:107, apps/local-server/src/memory_adapters.mjs:8, apps/local-server/src/memory_adapters.mjs:44).",
+        "Installed skill package integrity and database-backed overrides, with bounded package discovery and a source-relative fixed default root at apps/desktop/resources/skills; packaged desktop explicitly selects resource_dir/skills (apps/local-server/src/skills.mjs:8, apps/local-server/src/skills.mjs:16, apps/local-server/src/skills.mjs:287, apps/desktop/src-tauri/src/main.rs:140)."
+      ],
+      "assumptions": [
+        "User context supplied by parent: review scope is repository '.', prioritizing core apps rather than generated gallery/bundled skill implementations/dependencies; request is readiness findings and ideas/plan, with no execution, external access, edits or full audit delegated to this reviewer.",
+        "The SECURITY.md resolver returned no inherited policy for apps. Only bundled third-party skill-specific SECURITY.md files appeared in inventory; they do not establish core application security policy.",
+        "Supported startup paths are not interchangeable. The embedded helper's dataDir/state/local.db and dataDir/workspaces do not describe packaged desktop's app_data/engine-data/local.db and home-root configuration (apps/local-server/src/embedded.mjs:41, apps/desktop/src-tauri/src/main.rs:140, apps/desktop/src-tauri/src/main.rs:163).",
+        "Documentation/configuration qualification: README.md:130 describes EGE_SKILLS_ROOT as a runtime override. Direct API startup passes it through (apps/local-server/src/index.mjs:8), but packaged desktop passes an explicit bundled resource_dir/skills path (apps/desktop/src-tauri/src/main.rs:140, apps/desktop/src-tauri/src/main.rs:163; apps/desktop/src/sidecar.mjs:36), so the packaged path does not consume that environment override.",
+        "Filesystem permissions are host-dependent. Embedded setup requests mode 0700, and desktop sidecar mkdir also requests 0700, but Rust has already created engine-data with fs::create_dir_all and LocalRepository does not explicitly chmod its database. Existing directory modes, umask and ACLs must be verified before claiming private-per-user permissions are enforced end to end (apps/local-server/src/embedded.mjs:52, apps/desktop/src-tauri/src/main.rs:149, apps/desktop/src/sidecar.mjs:36, apps/local-server/src/database.mjs:280).",
+        "The desktop release configuration uses ad-hoc signingIdentity '-'; the packaging guide explicitly requires Developer ID signing and notarization for trusted distribution, and macOS entitlements do not establish App Sandbox isolation (apps/desktop/src-tauri/tauri.conf.json:50, apps/desktop/README.md:57, apps/desktop/README.md:59). Build success alone is not distribution readiness.",
+        "Native chooser provenance is a UI workflow fact. Backend graph workspace paths are accepted after canonical containment checks; the HTTP API does not require a cryptographic native-picker grant (apps/desktop/src-tauri/src/main.rs:45, apps/local-server/src/server.mjs:813).",
+        "CLI sandbox behavior, external login handling, configured provider service behavior, OS process termination semantics and actual platform filesystem protections were not executed or externally verified. Windows-specific process group behavior differs, and the PTY implementation uses Unix Python pty plus /bin shells and /bin/ps (apps/local-server/src/execution_adapters.mjs:528, apps/local-server/src/execution_adapters.mjs:611, apps/local-server/src/terminal_routes.mjs:12, apps/local-server/src/terminal_routes.mjs:54).",
+        "The adapter does not automatically roll back partial edits on failed, timed-out, interrupted or rejected execution; source documentation states this explicitly. Restart handling fails a live node interrupted before a durable receipt and asks for inspection/replanning rather than silently accepting it (apps/local-server/README.md:361, apps/local-server/src/server.mjs:3174).",
+        "This is an independent offline architecture mapping, not completed vulnerability-audit coverage or runtime readiness certification. Material source anchors were batch-checked: 134 nonblank locations across 26 inspected repository files.",
+        "Parent performed existing server/workbench tests, TypeScript checking and an inert symlink-containment fixture; the independent architecture review itself remained offline/static. Parent traced local shared_child Unix SIGKILL semantics for readiness planning. These do not establish live provider or packaged-runtime behavior."
+      ],
+      "attackerCapabilities": [
+        "An arbitrary remote website can induce browser requests to a discovered loopback service but cannot freely forge browser Origin. Successful crossing would add access to local engineering data or execution capability; loopback Host and exact Origin checks are the relevant existing controls (apps/local-server/src/server.mjs:2193). No public network listener or reverse-proxy deployment was established.",
+        "A local process can make HTTP requests and choose headers. The application does not authenticate local OS users or processes, so origin checks do not separate such callers from the operator. Do not assume local access is a newly gained privilege or treat this deliberate single-user trust model as an undocumented production authorization system (apps/local-server/src/server.mjs:2228, apps/local-server/README.md:99).",
+        "A source/package/provider author may supply malicious or misleading text to an operator's import, planning or chat workflow without already controlling the operator's account, approved plan or chosen project. A meaningful failure would convert that content into unauthorized project changes, misleading accepted verification, unintended remote transmission, or resource exhaustion. Plan hashes, fresh context, constrained CLI modes and receipt reconciliation must be investigated separately rather than collapsed into one prompt-injection claim (apps/local-server/src/server.mjs:2725, apps/local-server/src/server.mjs:2750, apps/local-server/src/execution_adapters.mjs:656).",
+        "A configured remote memory service can return arbitrary response data or fail/timeout; it cannot directly supply accepted prompt text through recall because the adapter returns ID/graph/digest hints and the caller matches local accepted synchronized records (apps/local-server/src/memory_adapters.mjs:35, apps/local-server/src/harness_memory.mjs:79).",
+        "An attacker who already controls PATH entries, the user's HOME/CODEX_HOME, trusted packaged resources, local database files, or the privileged build environment has capabilities outside the intended untrusted-input boundary. Such control must not be silently assumed when claiming a new escalation (apps/desktop/src-tauri/src/main.rs:117, apps/local-server/src/execution_adapters.mjs:278, apps/desktop/src-tauri/tauri.conf.json:44).",
+        "Parent validation distinguishes a separate local OS account with TCP loopback access from a process already holding unrestricted owner privileges. The former crosses an OS identity boundary through the unauthenticated terminal API; this is finding BASE-001, not an Internet-exposure claim."
+      ],
+      "securityObjectives": [
+        "Keep network exposure local and reject unrelated browser origins, including mutations without an allowed Origin (apps/local-server/src/server.mjs:796, apps/local-server/src/server.mjs:2193).",
+        "Bind approval and execution to the exact current immutable plan, selected provider, canonical project identity, baseline, agent/skill context and approved acceptance criteria; stop stale or interrupted work closed (apps/local-server/src/server.mjs:1088, apps/local-server/src/server.mjs:2160, apps/local-server/src/server.mjs:2725, apps/local-server/src/server.mjs:2750, apps/local-server/src/server.mjs:3174).",
+        "Keep the manual terminal and automated workspace execution mutually exclusive for a shared canonical workspace; bound live terminal sessions, retained output, input length and idle lifetime (apps/local-server/src/terminal_routes.mjs:6, apps/local-server/src/terminal_routes.mjs:65, apps/local-server/src/terminal_routes.mjs:106, apps/local-server/src/terminal_routes.mjs:157).",
+        "Send provider credentials only to the intended recipient, retain configured hosted keys in session memory, restrict planning environment fallback to canonical provider references, and avoid redirect forwarding (apps/local-server/src/provider_connections.mjs:115, apps/local-server/src/provider_connections.mjs:250, apps/local-server/src/planners.mjs:77, apps/local-server/src/planners.mjs:91).",
+        "Preserve evidence content integrity and no-overwrite publication while bounding ingestion and extraction. Do not present trace redaction as proof that every stored artifact or source is secret-free (apps/local-server/src/object_store.mjs:93, apps/local-server/src/object_store.mjs:144, apps/local-server/src/evidence.mjs:10, apps/local-server/src/trace_data.mjs:54).",
+        "Admit only current locally accepted provenance-bound memory to prompts; require explicit remote retention and disclose the remote-deletion boundary (apps/local-server/src/harness_memory.mjs:71, apps/local-server/src/harness_memory.mjs:79, apps/local-server/src/harness_memory.mjs:107).",
+        "For the user's requested stability/availability/reliability readiness review, assess process interruption, bounded work, storage growth, recovery, terminal/executor lifecycle and external-provider failure behavior. The present source supports a local harness review; production HA/DR/SLO guarantees require new design and evidence (README.md:201, apps/local-server/src/server.mjs:3158, apps/local-server/src/server.mjs:3174)."
+      ],
+      "summary": "Execution Graph Engineering currently implements a single-user local engineering workbench: React/Vite UI, Tauri desktop host, loopback Node 24 API, SQLite metadata/history, content-addressed evidence objects, hosted or local AI planning/chat adapters, optional remote memory adapters, approval-gated Codex workspace execution, and a separate interactive PTY terminal. The README explicitly distinguishes this implementation from its distributed production architecture blueprint (README.md:6, README.md:8, README.md:199, README.md:201). Startup modes materially differ: direct API startup derives paths from the process working directory and EGE_* variables (apps/local-server/src/index.mjs:8); embedded startup derives state/local.db, object-store, workspaces and skills below caller-provided dataDir (apps/local-server/src/embedded.mjs:41); packaged desktop startup passes Tauri app_data/engine-data/local.db, app_data/engine-data/object-store, bundled resource_dir/skills, and the user's home directory as the maximum accepted workspace root, and enables Codex workspace writes (apps/desktop/src-tauri/src/main.rs:140, apps/desktop/src-tauri/src/main.rs:163, apps/desktop/src-tauri/src/main.rs:175). API admission and data ownership are single-user local controls, not authenticated user or tenant boundaries: all routes pass loopback Host/exact Origin checks, and the health/session APIs explicitly return auth:none (apps/local-server/src/server.mjs:2193, apps/local-server/src/server.mjs:2228).",
+      "trustBoundaries": [
+        "Browser/webview -> local HTTP API. Server binding accepts only 127.0.0.1 or localhost. Every request requires a loopback Host; supplied Origin must equal a configured exact origin or http://Host; mutation methods require an Origin. Default trusted browser origins always include configured webPort on 127.0.0.1 and localhost, including desktop startup, which adds three Tauri origins. These are browser request controls, not proof of caller identity (apps/local-server/src/server.mjs:796, apps/local-server/src/server.mjs:807, apps/local-server/src/server.mjs:2193).",
+        "Tauri webview -> Rust host. The application exposes bootstrap and native directory selection commands; selection canonicalizes the selected directory. The bootstrap validates the sidecar's exact ephemeral HTTP IPv4-loopback origin; webview JavaScript obtains it through invoke. The declared window capability is core:default, and CSP permits its own assets and local API connections (apps/desktop/src-tauri/src/main.rs:45, apps/desktop/src-tauri/src/main.rs:98, apps/desktop/src-tauri/src/main.rs:243, apps/desktop/src-tauri/capabilities/default.json:5, apps/desktop/src-tauri/tauri.conf.json:26, apps/workbench/src/lib/desktop.ts:10). The independent HTTP API retains its own authority; a native picker is not an HTTP caller authentication mechanism.",
+        "User-authored intent, source evidence, skill instructions, catalog data, chat and provider responses -> plans and proposals. Inputs are bounded at HTTP and evidence-parser layers. JSON request bodies are capped at 2 MiB; source default is 8 MiB; evidence extraction has row, text, ZIP entry, expanded-size and compression-ratio limits (apps/local-server/src/server.mjs:267, apps/local-server/src/server.mjs:283, apps/local-server/src/evidence.mjs:10, apps/local-server/src/evidence.mjs:320, apps/local-server/src/evidence.mjs:593). AI suggestions are reviewed application state; approval requires the exact plan content hash and fresh context (apps/local-server/src/server.mjs:2725).",
+        "Approved plan -> project-writing Codex subprocess. Execution requires APPROVED status, graph ownership, matching requested provider, exact expected plan hash, fresh pinned context, idle terminal, and a bound workspace. The adapter independently requires EGE_ENABLE_WORKSPACE_WRITE=1, rechecks the captured workspace manifest, uses Codex workspace-write/ephemeral/ignore-user-config flags, and passes an environment allowlist. Timeout and cancellation signal process groups on non-Windows hosts. Actual changed files and observed command results are reconciled with the returned receipt (apps/local-server/src/server.mjs:2750, apps/local-server/src/execution_adapters.mjs:278, apps/local-server/src/execution_adapters.mjs:368, apps/local-server/src/execution_adapters.mjs:528, apps/local-server/src/execution_adapters.mjs:584, apps/local-server/src/execution_adapters.mjs:604, apps/local-server/src/execution_adapters.mjs:656).",
+        "Local terminal API -> Python PTY -> interactive host shell. This is a separate user-requested execution capability, not the approved-plan executor. It launches python3 from PATH in the canonical bound project and then /bin/zsh or /bin/sh. The environment is allowlisted, input/output/session counts are bounded, and queued/running/pause-requested/paused executions block terminal use for the same canonical workspace. The shell retains the OS user's normal filesystem/process/network authority (apps/local-server/src/terminal_routes.mjs:6, apps/local-server/src/terminal_routes.mjs:12, apps/local-server/src/terminal_routes.mjs:54, apps/local-server/src/terminal_routes.mjs:65, apps/local-server/src/terminal_routes.mjs:95, apps/local-server/src/terminal_routes.mjs:124, apps/local-server/src/terminal_routes.mjs:157).",
+        "Local backend -> hosted AI and Ollama. Hosted discovery and inference use fixed official HTTPS targets and reject redirects. Hosted planning can use canonical environment credentials; hosted chat requires a connected session secret. Connected Ollama discovery/chat permits only literal loopback HTTP origins without path/credentials/query/fragment. Low-level planning contains a broader loopback URL normalizer, so actual exposure must be assessed through its configuration callers rather than assuming that helper alone is reachable (apps/local-server/src/provider_connections.mjs:51, apps/local-server/src/provider_connections.mjs:115, apps/local-server/src/provider_connections.mjs:161, apps/local-server/src/planners.mjs:77, apps/local-server/src/planners.mjs:91, apps/local-server/src/planners.mjs:107, apps/local-server/src/chat_adapters.mjs:87).",
+        "Local accepted memory -> optional remote retention/recall. Remote access defaults off; endpoint/credentials require explicit configuration and each record requires explicit synchronization. Remote recall returns only matching ID/graph/digest hints, then ranks current accepted local records with a matching synchronized digest and endpoint. Provider-generated text is not admitted directly. Forgetting locally does not remove already retained remote content (apps/local-server/src/harness_memory.mjs:7, apps/local-server/src/harness_memory.mjs:71, apps/local-server/src/harness_memory.mjs:79, apps/local-server/src/harness_memory.mjs:107, apps/local-server/src/memory_adapters.mjs:35).",
+        "Diagnostics -> persistent local traces. Trace payloads pass recursive redaction and a 64 KiB payload cap before SQLite writes. This diagnostic path is distinct from raw source/artifact storage and from live terminal output (apps/local-server/src/trace_data.mjs:4, apps/local-server/src/trace_data.mjs:25, apps/local-server/src/trace_data.mjs:54, apps/local-server/src/database.mjs:1595, apps/local-server/src/database.mjs:1635).",
+        "Optional same-origin static HTTP delivery -> filesystem assets. The static server rejects decoded traversal segments, canonicalizes paths under the selected root, opens with O_NOFOLLOW where supported, requires regular files, and applies CSP/anti-framing/MIME/referrer headers (apps/local-server/src/server.mjs:63, apps/local-server/src/server.mjs:114, apps/local-server/src/server.mjs:145, apps/local-server/src/server.mjs:174)."
+      ]
+    }
+  },
+  "schemaVersion": "1.0"
+}

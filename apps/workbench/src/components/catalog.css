@@ -1,0 +1,43 @@
+.catalog-panel { display:grid; grid-template-columns:230px minmax(0,1fr); height:100%; min-height:0; color:var(--foreground,#ccc); background:var(--background,#1e1e1e); font-size:12px; }
+.catalog-panel button,.catalog-panel input,.catalog-panel textarea,.catalog-panel select { font:inherit; color:inherit; }
+.catalog-panel button { border:1px solid var(--border,#393939); border-radius:3px; padding:5px 9px; background:var(--secondary,#292929); cursor:pointer; }
+.catalog-panel button:hover { background:var(--muted,#343434); }
+.catalog-panel button:disabled { opacity:.5; cursor:default; }
+.catalog-panel input:not([type=checkbox]):not([type=file]),.catalog-panel textarea,.catalog-panel select { width:100%; min-width:0; border:1px solid var(--border,#393939); border-radius:3px; background:var(--secondary,#252525); padding:7px 8px; }
+.catalog-list { display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--border,#393939); padding:12px 10px; gap:12px; }
+.catalog-list>header,.catalog-editor-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.catalog-items { overflow:auto; min-height:0; display:flex; flex-direction:column; gap:2px; }
+.catalog-items>button { display:flex; flex-direction:column; align-items:stretch; text-align:left; gap:5px; border-color:transparent; background:transparent; padding:9px; }
+.catalog-items>button.is-selected { background:var(--secondary,#2c313a); border-color:var(--border,#454545); }
+.catalog-items span { overflow:hidden; text-overflow:ellipsis; }
+.catalog-items small,.catalog-hint,.catalog-panel label>span,.catalog-editor-header small { color:var(--muted-foreground,#999); font-size:11px; line-height:1.5; }
+.catalog-editor { min-width:0; min-height:0; overflow:auto; }
+.catalog-editor-header { position:sticky; top:0; z-index:1; padding:13px 18px; border-bottom:1px solid var(--border,#333); background:var(--background,#1e1e1e); }
+.catalog-editor-header>div:first-child { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.catalog-editor-header strong { overflow-wrap:anywhere; }
+.catalog-actions { display:flex; gap:7px; }
+.catalog-panel .catalog-save { background:#0e639c; color:#fff; border-color:#0e639c; }
+.catalog-form { padding:18px; max-width:1000px; display:flex; flex-direction:column; gap:17px; }
+.catalog-form>label,.catalog-field-pair>label { display:flex; flex-direction:column; gap:7px; }
+.catalog-inline { display:flex; align-items:center; gap:20px; }
+.catalog-panel .catalog-check { display:flex; flex-direction:row; align-items:center; gap:7px; font-weight:400; }
+.catalog-check input { margin:0; accent-color:#007acc; }
+.catalog-field-pair { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.catalog-form details { border-top:1px solid var(--border,#333); padding-top:12px; }
+.catalog-form summary { cursor:pointer; margin-bottom:10px; }
+.catalog-skill-picker { max-height:220px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; padding:4px; }
+.catalog-panel .catalog-content { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; line-height:1.65; resize:vertical; min-height:260px; }
+.catalog-empty { margin:50px auto; padding:20px; max-width:460px; line-height:1.7; }
+.catalog-empty>strong { font-size:15px; font-weight:500; }
+.catalog-empty>p { color:var(--muted-foreground,#999); }
+.catalog-error { color:#f4a3a3; background:#42292b; padding:10px 14px; margin:0; line-height:1.5; }
+.catalog-error>button { margin-left:12px; }
+.catalog-message { padding:10px 18px; margin:0; color:#93c997; }
+.catalog-import { cursor:pointer; border:1px solid var(--border,#333); border-radius:3px; text-align:center; padding:6px; }
+.catalog-import input { display:none; }
+.catalog-fingerprint { font-size:11px; margin:0; color:var(--muted-foreground,#999); }
+.catalog-fingerprint code { display:block; overflow-wrap:anywhere; margin-top:5px; }
+.catalog-history { padding-left:20px; }
+.catalog-history li { padding:6px 0; }
+.catalog-history time,.catalog-history code { margin-left:12px; color:var(--muted-foreground,#999); font-size:11px; }
+@media(max-width:800px) { .catalog-panel { grid-template-columns:180px minmax(0,1fr); } .catalog-field-pair { grid-template-columns:1fr; } .catalog-editor-header { flex-wrap:wrap; } }

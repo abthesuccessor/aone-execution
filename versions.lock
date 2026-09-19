@@ -1,0 +1,45 @@
+schema_version: 1
+kind: ArchitectureVersionsLock
+documented_at: "2026-08-06"
+status: blueprint
+deployable: false
+
+# This architecture repository records supported families. Release tooling must
+# materialize every null exact pin and digest before setting deployable: true.
+version_families:
+  rust: pinned_stable
+  nodejs: active_lts
+  python: supported_current_minors
+  react: "19"
+  postgresql: "18"
+  kubernetes: "1.36"
+
+release_pins:
+  rust_toolchain: null
+  nodejs_version: null
+  python_versions: []
+  postgresql_patch: "18.4"
+  kubernetes_patch: null
+  nats_server_version: null
+  frontend_lock_digest: null
+  cargo_lock_digest: null
+  bazel_release_graph_digest: null
+  helm_chart_digest: null
+  image_manifest_digest: null
+
+validation_pins:
+  postgresql_image: "postgres@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15"
+
+required_evidence:
+  exact_versions: true
+  immutable_image_digests: true
+  sbom_digest: true
+  provenance_digest: true
+  compatibility_report_digest: true
+  restore_test_report_digest: true
+  rollback_test_report_digest: true
+
+validation:
+  reject_floating_tags: true
+  reject_unresolved_nulls_when_deployable: true
+  reject_empty_python_versions_when_deployable: true

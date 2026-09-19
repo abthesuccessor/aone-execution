@@ -1,0 +1,767 @@
+openapi: 3.1.0
+info:
+  title: Execution Graph Control Plane API
+  version: 1.0.0
+  license:
+    name: UNLICENSED architecture draft
+    identifier: UNLICENSED
+  description: >-
+    Versioned API for graph commits, compilation/publication, execution control,
+    signals, state/history inspection, and approvals. Mutations require explicit
+    tenant context, authorization, policy admission, and idempotency where declared.
+servers:
+  - url: https://api.execution-graph.example/v1
+security:
+  - oauth2: ['graphs:read']
+paths:
+  /projects/{projectId}/graphs:
+    post:
+      operationId: createGraph
+      summary: Create graph identity and initial immutable source version.
+      security:
+        - oauth2: ['graphs:write']
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGraphRequest'
+      responses:
+        '201':
+          description: Created.
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GraphVersion' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /graphs/{graphId}/versions:
+    post:
+      operationId: createGraphVersion
+      summary: Commit a new immutable GraphVersion from source or an authorized draft head.
+      security:
+        - oauth2: ['graphs:write']
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/CreateGraphVersionFromSourceRequest'
+                - $ref: '#/components/schemas/CreateGraphVersionFromDraftRequest'
+      responses:
+        '201':
+          description: Immutable source version committed; compilation is a separate operation.
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GraphVersion' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /graphs/{graphId}/versions/{versionId}:compile:
+    post:
+      operationId: compileGraphVersion
+      summary: Compile source to immutable Plan IR and return diagnostics.
+      security:
+        - oauth2: ['graphs:compile']
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [compiler_version, target_runtime_abi]
+              properties:
+                compiler_version: { type: string }
+                target_runtime_abi: { type: string }
+                dependency_lock_hash: { $ref: '#/components/schemas/Sha256' }
+      responses:
+        '200':
+          description: Compilation completed, possibly with non-publishable diagnostics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compilation' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /environments/{environmentId}/deployments:
+    post:
+      operationId: publishDeployment
+      summary: Publish an admitted immutable plan to an environment.
+      security:
+        - oauth2: ['deployments:publish']
+      parameters:
+        - $ref: '#/components/parameters/EnvironmentId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishDeploymentRequest' }
+      responses:
+        '201':
+          description: Deployment revision created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deployment' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /deployments/{deploymentId}/executions:
+    post:
+      operationId: startExecution
+      summary: Start an execution pinned to the selected deployment revision.
+      security:
+        - oauth2: ['executions:start']
+      parameters:
+        - $ref: '#/components/parameters/DeploymentId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartExecutionRequest' }
+      responses:
+        '202':
+          description: Execution durably admitted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execution' }
+        '402':
+          description: Budget or credit admission rejected.
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429':
+          description: Tenant/environment admission or rate limit exceeded.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+  /executions/{executionId}:
+    get:
+      operationId: getExecution
+      summary: Read canonical execution status and its freshness watermark.
+      security:
+        - oauth2: ['executions:read']
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+      responses:
+        '200':
+          description: Current canonical status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execution' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /executions/{executionId}:cancel:
+    post:
+      operationId: cancelExecution
+      summary: Durably request cooperative cancellation.
+      security:
+        - oauth2: ['executions:cancel']
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 2048 }
+                grace_period: { type: string, format: duration, default: PT30S }
+      responses:
+        '202':
+          description: Cancellation request committed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execution' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /executions/{executionId}:replay:
+    post:
+      operationId: replayExecution
+      summary: Rebuild, exactly replay, or fork from a content-bound source history boundary.
+      security:
+        - oauth2: ['executions:replay']
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplayExecutionRequest' }
+      responses:
+        '202':
+          description: Replay execution durably admitted with immutable source lineage.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execution' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /executions/{executionId}/signals/{signalName}:
+    post:
+      operationId: signalExecution
+      summary: Correlate a typed idempotent signal to a waiting execution.
+      security:
+        - oauth2: ['executions:signal']
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - name: signalName
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [payload]
+              properties:
+                payload: {}
+                expected_wait_id: { $ref: '#/components/schemas/UuidV7' }
+      responses:
+        '202': { description: Signal committed or already committed. }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /executions/{executionId}/history:
+    get:
+      operationId: listExecutionHistory
+      summary: Page through authorized canonical execution history.
+      security:
+        - oauth2: ['executions:read']
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - name: after_sequence
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        '200':
+          description: Ordered history page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, next_after_sequence]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/HistoryEvent' }
+                  next_after_sequence: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /approvals/{approvalId}:resolve:
+    post:
+      operationId: resolveApproval
+      summary: Approve or deny the exact content-bound proposal.
+      security:
+        - oauth2: ['approvals:resolve']
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UuidV7' }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision, proposal_hash, policy_snapshot_id, reason]
+              properties:
+                decision: { enum: [APPROVE, DENY] }
+                proposal_hash: { $ref: '#/components/schemas/Sha256' }
+                evidence_manifest_hash: { $ref: '#/components/schemas/Sha256' }
+                policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+                reason: { type: string, minLength: 1, maxLength: 4096 }
+      responses:
+        '200': { description: Resolution committed and audit recorded. }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { description: Approval expired or revoked. }
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://identity.execution-graph.example/oauth2/authorize
+          tokenUrl: https://identity.execution-graph.example/oauth2/token
+          scopes:
+            graphs:read: Read authorized graph metadata.
+            graphs:write: Create graph source versions.
+            graphs:compile: Compile graph versions.
+            deployments:publish: Publish admitted deployments.
+            executions:start: Start deployments.
+            executions:read: Read execution state and history.
+            executions:cancel: Cancel executions.
+            executions:replay: Rebuild, replay, or fork authorized executions.
+            executions:signal: Signal executions.
+            approvals:resolve: Resolve assigned approvals.
+  parameters:
+    ProjectId: { name: projectId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    GraphId: { name: graphId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    VersionId: { name: versionId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    EnvironmentId: { name: environmentId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    DeploymentId: { name: deploymentId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    ExecutionId: { name: executionId, in: path, required: true, schema: { $ref: '#/components/schemas/UuidV7' } }
+    IdempotencyKeyRequired:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  schemas:
+    UuidV7:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    Sha256:
+      type: string
+      pattern: '^sha256:[a-f0-9]{64}$'
+    CapabilityRequirement:
+      type: object
+      additionalProperties: false
+      required: [action, resource, constraints]
+      properties:
+        action:
+          type: string
+          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+        resource:
+          type: object
+          additionalProperties: false
+          required: [kind, id]
+          properties:
+            kind: { type: string, pattern: '^[a-z][a-z0-9_]{0,63}$' }
+            id: { type: string, minLength: 1, maxLength: 768 }
+            version_digest: { $ref: '#/components/schemas/Sha256' }
+        constraints: { type: object, maxProperties: 64 }
+    CreateGraphRequest:
+      type: object
+      additionalProperties: false
+      required: [source]
+      properties:
+        source: { $ref: './graph-spec.schema.json' }
+    CreateGraphVersionFromSourceRequest:
+      type: object
+      additionalProperties: false
+      required: [source, parent_version_ids, message]
+      properties:
+        source: { $ref: './graph-spec.schema.json' }
+        parent_version_ids:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/UuidV7' }
+        message: { type: string, minLength: 1, maxLength: 4096 }
+    CreateGraphVersionFromDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [source_draft_id, expected_draft_sequence, parent_version_ids, message]
+      properties:
+        source_draft_id: { $ref: '#/components/schemas/UuidV7' }
+        expected_draft_sequence: { type: integer, minimum: 0 }
+        parent_version_ids:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/UuidV7' }
+        message: { type: string, minLength: 1, maxLength: 4096 }
+    GraphVersion:
+      type: object
+      additionalProperties: false
+      required: [project_id, graph_id, version_id, source_hash, created_at]
+      properties:
+        project_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_id: { $ref: '#/components/schemas/UuidV7' }
+        version_id: { $ref: '#/components/schemas/UuidV7' }
+        source_hash: { $ref: '#/components/schemas/Sha256' }
+        parent_version_ids:
+          type: array
+          items: { $ref: '#/components/schemas/UuidV7' }
+        created_at: { type: string, format: date-time }
+    Compilation:
+      oneOf:
+        - $ref: '#/components/schemas/SucceededCompilation'
+        - $ref: '#/components/schemas/FailedCompilation'
+      discriminator:
+        propertyName: status
+        mapping:
+          SUCCEEDED: '#/components/schemas/SucceededCompilation'
+          FAILED: '#/components/schemas/FailedCompilation'
+    SucceededCompilation:
+      type: object
+      additionalProperties: false
+      required: [compilation_id, graph_version_id, status, compiled_plan_id, plan_hash, envelope_hash, plan_artifact_id, dependency_lock_hash, required_capabilities, diagnostics]
+      properties:
+        compilation_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_version_id: { $ref: '#/components/schemas/UuidV7' }
+        status: { const: SUCCEEDED }
+        compiled_plan_id: { $ref: '#/components/schemas/UuidV7' }
+        plan_hash: { $ref: '#/components/schemas/Sha256' }
+        envelope_hash: { $ref: '#/components/schemas/Sha256' }
+        plan_artifact_id: { $ref: '#/components/schemas/UuidV7' }
+        dependency_lock_hash: { $ref: '#/components/schemas/Sha256' }
+        required_capabilities:
+          type: array
+          items: { $ref: '#/components/schemas/CapabilityRequirement' }
+        diagnostics:
+          type: array
+          items:
+            type: object
+            required: [severity, code, message, source_pointer]
+            properties:
+              severity: { enum: [INFO, WARNING, ERROR] }
+              code: { type: string }
+              message: { type: string }
+              source_pointer: { type: string }
+    FailedCompilation:
+      type: object
+      additionalProperties: false
+      required: [compilation_id, graph_version_id, status, diagnostics]
+      properties:
+        compilation_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_version_id: { $ref: '#/components/schemas/UuidV7' }
+        status: { const: FAILED }
+        diagnostics:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [severity, code, message, source_pointer]
+            properties:
+              severity: { enum: [INFO, WARNING, ERROR] }
+              code: { type: string }
+              message: { type: string }
+              source_pointer: { type: string }
+    PublishDeploymentRequest:
+      type: object
+      additionalProperties: false
+      required: [namespace_id, graph_id, name, policy_snapshot_id, bindings, traffic]
+      properties:
+        namespace_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_id: { $ref: '#/components/schemas/UuidV7' }
+        name:
+          type: string
+          pattern: '^[a-z][a-z0-9-]{0,62}$'
+        policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+        approval_id: { $ref: '#/components/schemas/UuidV7' }
+        bindings: { type: object, maxProperties: 256 }
+        traffic:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [compilation_id, compiled_plan_id, plan_hash, plan_envelope_hash, weight_basis_points, selector]
+            properties:
+              compilation_id: { $ref: '#/components/schemas/UuidV7' }
+              compiled_plan_id: { $ref: '#/components/schemas/UuidV7' }
+              plan_hash: { $ref: '#/components/schemas/Sha256' }
+              plan_envelope_hash: { $ref: '#/components/schemas/Sha256' }
+              weight_basis_points: { type: integer, minimum: 0, maximum: 10000 }
+              selector: { type: object }
+    Deployment:
+      type: object
+      additionalProperties: false
+      required: [deployment_id, environment_id, graph_id, revision, status, policy_snapshot_id, targets]
+      properties:
+        deployment_id: { $ref: '#/components/schemas/UuidV7' }
+        environment_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_id: { $ref: '#/components/schemas/UuidV7' }
+        revision: { type: integer }
+        status: { enum: [DRAFT, ACTIVE, PAUSED, RETIRED] }
+        policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+        approval_id: { $ref: '#/components/schemas/UuidV7' }
+        targets:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [deployment_target_id, compilation_id, compiled_plan_id, plan_hash, plan_envelope_hash, weight_basis_points]
+            properties:
+              deployment_target_id: { $ref: '#/components/schemas/UuidV7' }
+              compilation_id: { $ref: '#/components/schemas/UuidV7' }
+              compiled_plan_id: { $ref: '#/components/schemas/UuidV7' }
+              plan_hash: { $ref: '#/components/schemas/Sha256' }
+              plan_envelope_hash: { $ref: '#/components/schemas/Sha256' }
+              weight_basis_points: { type: integer }
+    StartExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [input]
+      properties:
+        input: {}
+        expected_deployment_revision: { type: integer, minimum: 1 }
+        labels: { type: object, additionalProperties: { type: string }, maxProperties: 32 }
+        budget_override:
+          type: object
+          additionalProperties: false
+          properties:
+            timeout: { type: string, format: duration }
+            max_cost_microunits: { type: integer, minimum: 0 }
+        callback:
+          type: object
+          properties:
+            url_ref: { type: string, description: 'Registered endpoint reference, not arbitrary URL.' }
+    ReplayExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [operation, execution_mode, adapter_effect_mode, source_through_sequence, source_event_id, expected_source_history_hash]
+      properties:
+        operation: { enum: [STATE_REBUILD, EXACT_REPLAY, FORKED_REPLAY] }
+        execution_mode: { enum: [LIVE, REPLAY, SIMULATION] }
+        adapter_effect_mode: { enum: [SUBSTITUTE_RECORDED, REEXECUTE_READ_ONLY, REEXECUTE_AUTHORIZED_EFFECT, FORBID] }
+        source_through_sequence: { type: integer, minimum: 1 }
+        source_event_id: { $ref: '#/components/schemas/UuidV7' }
+        expected_source_history_hash: { $ref: '#/components/schemas/Sha256' }
+        policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+        approval_id: { $ref: '#/components/schemas/UuidV7' }
+        reason: { type: string, minLength: 1, maxLength: 4096 }
+      allOf:
+        - if:
+            properties:
+              operation: { const: STATE_REBUILD }
+            required: [operation]
+          then:
+            properties:
+              execution_mode: { const: REPLAY }
+              adapter_effect_mode: { const: FORBID }
+              policy_snapshot_id: false
+              approval_id: false
+        - if:
+            properties:
+              operation: { const: EXACT_REPLAY }
+            required: [operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+                  policy_snapshot_id: false
+                  approval_id: false
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { const: REEXECUTE_READ_ONLY }
+                  policy_snapshot_id: false
+                  approval_id: false
+        - if:
+            properties:
+              operation: { const: FORKED_REPLAY }
+            required: [operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+                  policy_snapshot_id: false
+                  approval_id: false
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { enum: [FORBID, REEXECUTE_READ_ONLY] }
+                  policy_snapshot_id: false
+                  approval_id: false
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: FORBID }
+                  policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+                  approval_id: false
+                required: [policy_snapshot_id]
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: REEXECUTE_AUTHORIZED_EFFECT }
+                  policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+                  approval_id: { $ref: '#/components/schemas/UuidV7' }
+                required: [policy_snapshot_id, approval_id]
+    Execution:
+      type: object
+      additionalProperties: false
+      required: [execution_id, origin, status, environment_id, home_cell_id, routing_epoch, graph_id, graph_version_id, compilation_id, compiled_plan_id, plan_hash, plan_envelope_hash, policy_snapshot_id, execution_mode, replay_operation, adapter_effect_mode, state_version, history_sequence, created_at]
+      properties:
+        execution_id: { $ref: '#/components/schemas/UuidV7' }
+        origin: { enum: [DEPLOYMENT, SUBGRAPH, REPLAY, SIMULATION] }
+        deployment_id: { $ref: '#/components/schemas/UuidV7' }
+        deployment_revision: { type: integer, minimum: 1 }
+        deployment_target_id: { $ref: '#/components/schemas/UuidV7' }
+        status: { enum: [ADMITTED, RUNNING, SUSPENDED, CANCELLING, SUCCEEDED, FAILED, TIMED_OUT, CANCELLED, CANCELLED_WITH_EFFECTS, QUARANTINED] }
+        terminal_reason_code: { type: string }
+        suspension_reason_code: { type: string }
+        environment_id: { $ref: '#/components/schemas/UuidV7' }
+        home_cell_id: { type: string }
+        routing_epoch: { type: integer, minimum: 1 }
+        graph_id: { $ref: '#/components/schemas/UuidV7' }
+        graph_version_id: { $ref: '#/components/schemas/UuidV7' }
+        compilation_id: { $ref: '#/components/schemas/UuidV7' }
+        compiled_plan_id: { $ref: '#/components/schemas/UuidV7' }
+        plan_hash: { $ref: '#/components/schemas/Sha256' }
+        plan_envelope_hash: { $ref: '#/components/schemas/Sha256' }
+        policy_snapshot_id: { $ref: '#/components/schemas/UuidV7' }
+        execution_mode: { enum: [LIVE, REPLAY, SIMULATION] }
+        replay_operation: { enum: [NONE, STATE_REBUILD, EXACT_REPLAY, FORKED_REPLAY] }
+        adapter_effect_mode: { enum: [SUBSTITUTE_RECORDED, REEXECUTE_READ_ONLY, REEXECUTE_AUTHORIZED_EFFECT, FORBID] }
+        replay_source_execution_id: { $ref: '#/components/schemas/UuidV7' }
+        replay_source_through_sequence: { type: integer, minimum: 1 }
+        replay_source_event_id: { $ref: '#/components/schemas/UuidV7' }
+        replay_source_history_hash: { $ref: '#/components/schemas/Sha256' }
+        replay_approval_id: { $ref: '#/components/schemas/UuidV7' }
+        state_version: { type: integer }
+        history_sequence: { type: integer }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+        output_artifact_id: { $ref: '#/components/schemas/UuidV7' }
+        safe_error: { $ref: '#/components/schemas/Problem' }
+      allOf:
+        - if:
+            properties:
+              origin: { const: DEPLOYMENT }
+            required: [origin]
+          then:
+            properties:
+              deployment_id: { $ref: '#/components/schemas/UuidV7' }
+              deployment_revision: { type: integer, minimum: 1 }
+              deployment_target_id: { $ref: '#/components/schemas/UuidV7' }
+            required: [deployment_id, deployment_revision, deployment_target_id]
+          else:
+            properties:
+              deployment_id: false
+              deployment_revision: false
+              deployment_target_id: false
+        - if:
+            properties:
+              replay_operation: { const: NONE }
+            required: [replay_operation]
+          then:
+            properties:
+              replay_source_execution_id: false
+              replay_source_through_sequence: false
+              replay_source_event_id: false
+              replay_source_history_hash: false
+          else:
+            properties:
+              replay_source_execution_id: { $ref: '#/components/schemas/UuidV7' }
+              replay_source_through_sequence: { type: integer, minimum: 1 }
+              replay_source_event_id: { $ref: '#/components/schemas/UuidV7' }
+              replay_source_history_hash: { $ref: '#/components/schemas/Sha256' }
+            required: [replay_source_execution_id, replay_source_through_sequence, replay_source_event_id, replay_source_history_hash]
+        - if:
+            properties:
+              replay_operation: { const: NONE }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: REEXECUTE_AUTHORIZED_EFFECT }
+                  replay_approval_id: false
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { enum: [FORBID, REEXECUTE_READ_ONLY] }
+                  replay_approval_id: false
+        - if:
+            properties:
+              replay_operation: { const: STATE_REBUILD }
+            required: [replay_operation]
+          then:
+            properties:
+              execution_mode: { const: REPLAY }
+              adapter_effect_mode: { const: FORBID }
+              replay_approval_id: false
+        - if:
+            properties:
+              replay_operation: { const: EXACT_REPLAY }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+                  replay_approval_id: false
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { const: REEXECUTE_READ_ONLY }
+                  replay_approval_id: false
+        - if:
+            properties:
+              replay_operation: { const: FORKED_REPLAY }
+            required: [replay_operation]
+          then:
+            oneOf:
+              - properties:
+                  execution_mode: { const: REPLAY }
+                  adapter_effect_mode: { const: SUBSTITUTE_RECORDED }
+                  replay_approval_id: false
+              - properties:
+                  execution_mode: { const: SIMULATION }
+                  adapter_effect_mode: { enum: [FORBID, REEXECUTE_READ_ONLY] }
+                  replay_approval_id: false
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: FORBID }
+                  replay_approval_id: false
+              - properties:
+                  execution_mode: { const: LIVE }
+                  adapter_effect_mode: { const: REEXECUTE_AUTHORIZED_EFFECT }
+                  replay_approval_id: { $ref: '#/components/schemas/UuidV7' }
+                required: [replay_approval_id]
+    HistoryEvent:
+      $ref: './execution-history-event.schema.json'
+    Problem:
+      type: object
+      required: [type, title, status, code, trace_id]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        trace_id: { type: string }
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              pointer: { type: string }
+              code: { type: string }
+              message: { type: string }
+  responses:
+    Conflict:
+      description: Requested transition conflicts with current version or state.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated principal lacks authority or policy admission failed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource is absent or intentionally concealed from this principal.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationFailed:
+      description: Schema, compiler, or policy validation failed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

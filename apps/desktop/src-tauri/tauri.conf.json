@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aone Execution",
+  "version": "0.1.0",
+  "identifier": "com.aone.execution",
+  "mainBinaryName": "aone-execution",
+  "build": {
+    "frontendDist": "../../workbench/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Aone Execution",
+        "width": 1480,
+        "height": 960,
+        "minWidth": 1040,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": true,
+        "backgroundColor": "#1e1e1e",
+        "useHttpsScheme": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; worker-src 'self' blob:"
+    },
+    "withGlobalTauri": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Local execution graph engineering workbench",
+    "longDescription": "A local-first graph authoring, planning, approval, and execution workbench.",
+    "icon": [
+      "../assets/app-icon.png",
+      "../assets/app-icon.icns"
+    ],
+    "externalBin": [
+      "binaries/ege-node"
+    ],
+    "resources": {
+      "../resources/sidecar/": "sidecar/",
+      "../resources/skills/": "skills/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist"
+    }
+  }
+}

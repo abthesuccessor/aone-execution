@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution-graph.example/v1/execution-history-event.schema.json",
+  "title": "Canonical Execution History Event",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "uuidv7": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "event_id",
+    "tenant_id",
+    "execution_id",
+    "sequence",
+    "event_type",
+    "schema_version",
+    "actor",
+    "occurred_at",
+    "recorded_at",
+    "classification",
+    "payload_hash"
+  ],
+  "properties": {
+    "event_id": { "$ref": "#/$defs/uuidv7" },
+    "tenant_id": { "$ref": "#/$defs/uuidv7" },
+    "execution_id": { "$ref": "#/$defs/uuidv7" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "event_type": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "activation_id": { "$ref": "#/$defs/sha256" },
+    "attempt_id": { "$ref": "#/$defs/uuidv7" },
+    "causation_event_id": { "$ref": "#/$defs/uuidv7" },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["USER", "SERVICE", "WORKER", "SYSTEM"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "recorded_at": { "type": "string", "format": "date-time" },
+    "traceparent": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+    },
+    "classification": {
+      "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]
+    },
+    "payload": {},
+    "payload_artifact_id": { "$ref": "#/$defs/uuidv7" },
+    "payload_hash": { "$ref": "#/$defs/sha256" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "payload": {},
+        "payload_artifact_id": false
+      },
+      "required": ["payload"]
+    },
+    {
+      "properties": {
+        "payload": false,
+        "payload_artifact_id": { "$ref": "#/$defs/uuidv7" }
+      },
+      "required": ["payload_artifact_id"]
+    }
+  ]
+}

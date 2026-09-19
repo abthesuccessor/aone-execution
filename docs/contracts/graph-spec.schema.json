@@ -1,0 +1,458 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution-graph.example/v1/graph-spec.schema.json",
+  "title": "Execution GraphSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "executiongraph.io/v1" },
+    "kind": { "const": "Graph" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "spec": { "$ref": "#/$defs/graph" },
+    "editor": {
+      "description": "Non-semantic layout excluded from the compiled plan hash.",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$"
+    },
+    "portIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "writerId": {
+      "oneOf": [
+        { "$ref": "#/$defs/identifier" },
+        { "const": "$initializer" }
+      ]
+    },
+    "namespacePath": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._/-]{0,254}$"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "name", "version"],
+      "properties": {
+        "namespace": { "$ref": "#/$defs/namespacePath" },
+        "name": { "$ref": "#/$defs/identifier" },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+        },
+        "description": { "type": "string", "maxLength": 8192 },
+        "labels": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z0-9]([a-z0-9./_-]{0,62}[a-z0-9])?$" },
+          "additionalProperties": { "type": "string", "maxLength": 256 },
+          "maxProperties": 64
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 64 },
+          "uniqueItems": true,
+          "maxItems": 64
+        }
+      }
+    },
+    "valueSchema": {
+      "description": "Inline JSON Schema or immutable registry reference.",
+      "oneOf": [
+        { "type": "object" },
+        { "type": "string", "pattern": "^registry://.+@[0-9]+$" }
+      ]
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "schema", "classification"],
+      "properties": {
+        "name": { "$ref": "#/$defs/portIdentifier" },
+        "schema": { "$ref": "#/$defs/valueSchema" },
+        "required": { "type": "boolean", "default": true },
+        "stream": { "type": "boolean", "default": false },
+        "classification": {
+          "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]
+        },
+        "description": { "type": "string", "maxLength": 2048 }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxAttempts", "backoff"],
+      "properties": {
+        "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "backoff": { "enum": ["FIXED", "LINEAR", "EXPONENTIAL", "DECORRELATED_JITTER"] },
+        "initialDelay": { "type": "string", "format": "duration" },
+        "maxDelay": { "type": "string", "format": "duration" },
+        "retryOn": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "nonRetryable": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "effect": {
+      "description": "Closed graph-owned effect variants make canonicalization unambiguous. reconciliationProcedure is forbidden for PURE and READ_ONLY, and required for every write or human effect. allowedAdapterEffectModes is an optional class-compatible narrowing of the required modes on the resolved NodeDefinition or ToolDefinition.",
+      "oneOf": [
+        {
+          "title": "Pure effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "deliveryContract"],
+          "properties": {
+            "class": { "const": "PURE" },
+            "deliveryContract": { "const": "NO_EFFECT" },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": { "const": "FORBID" },
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "title": "Read-only effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "deliveryContract"],
+          "properties": {
+            "class": { "const": "READ_ONLY" },
+            "deliveryContract": { "const": "READ_ONLY_REPEATABLE" },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": {
+                "enum": ["SUBSTITUTE_RECORDED", "REEXECUTE_READ_ONLY", "FORBID"]
+              },
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "title": "Idempotent write effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "idempotencyKey", "deliveryContract", "reconciliationProcedure"],
+          "properties": {
+            "class": { "const": "IDEMPOTENT_WRITE" },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "description": "Restricted expression validated by the compiler and evaluated over canonical inputs by trusted WorkerGateway code."
+            },
+            "deliveryContract": {
+              "enum": ["DESTINATION_IDEMPOTENCY", "TRANSACTIONAL_ADAPTER"]
+            },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": {
+                "enum": ["SUBSTITUTE_RECORDED", "REEXECUTE_AUTHORIZED_EFFECT", "FORBID"]
+              },
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true
+            },
+            "reconciliationProcedure": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "title": "Compensatable write effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "idempotencyKey", "deliveryContract", "compensationPort", "reconciliationProcedure"],
+          "properties": {
+            "class": { "const": "COMPENSATABLE_WRITE" },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "description": "Restricted expression validated by the compiler and evaluated over canonical inputs by trusted WorkerGateway code."
+            },
+            "deliveryContract": { "const": "COMPENSATE_ON_FAILURE" },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": {
+                "enum": ["SUBSTITUTE_RECORDED", "REEXECUTE_AUTHORIZED_EFFECT", "FORBID"]
+              },
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true
+            },
+            "compensationPort": { "$ref": "#/$defs/portIdentifier" },
+            "reconciliationProcedure": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "title": "Non-idempotent write effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "deliveryContract", "reconciliationProcedure"],
+          "properties": {
+            "class": { "const": "NON_IDEMPOTENT_WRITE" },
+            "deliveryContract": {
+              "enum": ["AT_LEAST_ONCE_REPEATABLE", "STOP_ON_AMBIGUITY"]
+            },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": {
+                "enum": ["SUBSTITUTE_RECORDED", "REEXECUTE_AUTHORIZED_EFFECT", "FORBID"]
+              },
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true
+            },
+            "reconciliationProcedure": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "title": "Human effect",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "deliveryContract", "approvalPolicy", "reconciliationProcedure"],
+          "properties": {
+            "class": { "const": "HUMAN_EFFECT" },
+            "deliveryContract": { "const": "STOP_ON_AMBIGUITY" },
+            "allowedAdapterEffectModes": {
+              "type": "array",
+              "items": {
+                "enum": ["SUBSTITUTE_RECORDED", "REEXECUTE_AUTHORIZED_EFFECT", "FORBID"]
+              },
+              "minItems": 1,
+              "maxItems": 3,
+              "uniqueItems": true
+            },
+            "approvalPolicy": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "reconciliationProcedure": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        }
+      ]
+    },
+    "capabilityRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "resource", "constraints"],
+      "properties": {
+        "action": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$", "maxLength": 128 },
+        "resource": { "$ref": "#/$defs/resourceRef" },
+        "constraints": { "type": "object", "maxProperties": 64 }
+      }
+    },
+    "resourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+        "id": { "type": "string", "minLength": 1, "maxLength": 768 },
+        "version_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout": { "type": "string", "format": "duration" },
+        "maxInputTokens": { "type": "integer", "minimum": 0 },
+        "maxOutputTokens": { "type": "integer", "minimum": 0 },
+        "maxCostMicrounits": { "type": "integer", "minimum": 0 },
+        "maxStateBytes": { "type": "integer", "minimum": 0 },
+        "maxChildren": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "inputs", "outputs", "config", "effect"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "type": { "type": "string", "pattern": "^(builtin|package)://.+@[0-9]+(?:\\.[0-9]+){0,2}$" },
+        "displayName": { "type": "string", "maxLength": 256 },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/port" },
+          "maxItems": 128
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/port" },
+          "maxItems": 128
+        },
+        "config": { "type": "object" },
+        "effect": { "$ref": "#/$defs/effect" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capabilityRequirement" },
+          "uniqueItems": true,
+          "maxItems": 128
+        },
+        "retry": { "$ref": "#/$defs/retry" },
+        "budget": { "$ref": "#/$defs/budget" },
+        "conflictPolicy": { "enum": ["FAIL_CONFLICT", "RECOMPUTE", "APPLY_REDUCER", "SERIALIZE_SCOPE"] },
+        "errorPort": { "$ref": "#/$defs/portIdentifier" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "port"],
+      "properties": {
+        "node": { "$ref": "#/$defs/identifier" },
+        "port": { "$ref": "#/$defs/portIdentifier" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "from", "to"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": { "enum": ["DATA", "CONTROL", "ERROR", "SIGNAL", "STREAM", "COMPENSATION"] },
+        "from": { "$ref": "#/$defs/endpoint" },
+        "to": { "$ref": "#/$defs/endpoint" },
+        "when": { "type": "string", "description": "Restricted, pure expression." },
+        "map": { "type": "string", "description": "Restricted, pure mapping expression." },
+        "priority": { "type": "integer", "minimum": -1000, "maximum": 1000 },
+        "buffer": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "capacity": { "type": "integer", "minimum": 1 },
+            "overflow": { "enum": ["BLOCK", "DROP_OLDEST", "DROP_NEWEST", "FAIL"] }
+          }
+        }
+      }
+    },
+    "statePath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mutability", "writers", "classification"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/(?:[^/~]|~[01])*(?:/(?:[^/~]|~[01])*)*$",
+          "maxLength": 2048
+        },
+        "mutability": { "enum": ["IMMUTABLE", "SINGLE_ASSIGNMENT", "COMPARE_AND_SET", "REDUCER"] },
+        "writers": { "type": "array", "items": { "$ref": "#/$defs/writerId" }, "minItems": 1, "uniqueItems": true },
+        "reducer": { "type": "string" },
+        "classification": { "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"] },
+        "maxBytes": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mutability": { "const": "REDUCER" } }, "required": ["mutability"] },
+          "then": { "properties": { "reducer": { "type": "string" } }, "required": ["reducer"] },
+          "else": { "properties": { "reducer": false } }
+        },
+        {
+          "if": { "properties": { "mutability": { "const": "IMMUTABLE" } }, "required": ["mutability"] },
+          "then": {
+            "properties": {
+              "writers": {
+                "type": "array",
+                "prefixItems": [{ "const": "$initializer" }],
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "writers": { "not": { "type": "array", "contains": { "const": "$initializer" } } }
+            }
+          }
+        }
+      ]
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "outputs", "state", "nodes", "edges", "budgets"],
+      "properties": {
+        "inputs": { "type": "array", "items": { "$ref": "#/$defs/port" } },
+        "outputs": { "type": "array", "items": { "$ref": "#/$defs/port" } },
+        "state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "paths"],
+          "properties": {
+            "schema": { "$ref": "#/$defs/valueSchema" },
+            "paths": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/statePath" },
+              "maxItems": 1024
+            }
+          }
+        },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" }, "minItems": 1, "maxItems": 10000 },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" }, "maxItems": 50000 },
+        "budgets": {
+          "allOf": [
+            { "$ref": "#/$defs/budget" },
+            {
+              "type": "object",
+              "required": ["timeout", "maxCostMicrounits", "maxStateBytes", "maxChildren"]
+            }
+          ]
+        },
+        "maxLoopIterations": { "type": "integer", "minimum": 1 },
+        "maxDynamicNodes": { "type": "integer", "minimum": 0 },
+        "onError": { "enum": ["FAIL", "COMPENSATE", "CONTINUE_TO_ERROR_PORT"] },
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "version", "digest"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+              "signature": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

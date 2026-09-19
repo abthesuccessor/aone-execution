@@ -1,0 +1,27 @@
+node_modules/
+apps/workbench/dist/
+apps/desktop/out/
+apps/desktop/resources/sidecar/
+apps/desktop/src-tauri/binaries/ege-node-*
+apps/desktop/src-tauri/target/
+apps/local-server/data/
+coverage/
+.ege/
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+npm-debug.log*
+
+# Local skill catalog snapshot.
+#
+# `npm run skills:ingest` materializes this directory from the operator's own
+# ~/.agents/skills and ~/.codex/skills. Those packages are third-party content
+# owned by their respective authors and are deliberately NOT redistributed by
+# this repository. Each machine builds its own catalog from skills it already
+# has a licence to use. See docs/SKILL-CATALOG.md.
+apps/desktop/resources/skills/
+
+# Review screenshots lost to binary truncation when this tree was copied.
+# They survive on disk only as 31-364 byte stubs, so they are not published as
+# evidence they can no longer support. See the note in the verification record.
+docs/reviews/2026-09-13-engineering-ui/*.png

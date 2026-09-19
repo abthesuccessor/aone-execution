@@ -1,0 +1,21 @@
+{
+  "retrievedAt": "2026-09-13",
+  "sources": [
+    {
+      "file": "POSTGRESQL-COPYRIGHT.txt",
+      "source": "https://raw.githubusercontent.com/postgres/postgres/REL_18_4/COPYRIGHT",
+      "sha256": "3d6af92ff8a4c2cdf69afb1cf44edea727922f5cd0cf8b5f72b11cdecac8fdfd"
+    },
+    {
+      "file": "ZONKY-APACHE-2.0.txt",
+      "source": "https://raw.githubusercontent.com/zonkyio/embedded-postgres-binaries/master/LICENSE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    },
+    {
+      "file": "EMBEDDED-POSTGRES-MIT.txt",
+      "source": "https://raw.githubusercontent.com/leinelissen/embedded-postgres/main/LICENSE.md",
+      "sha256": "e094f576ecd150e7cad723e0bd56c13bd42ce9f4df61af14f439d852b39ad4d4"
+    }
+  ],
+  "qualification": "Partial notice collection, not a complete redistribution determination."
+}

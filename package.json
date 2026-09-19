@@ -1,0 +1,65 @@
+{
+  "name": "aone-execution",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Executable validation harness for the Aone Execution architecture contracts.",
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.14"
+    }
+  },
+  "scripts": {
+    "storage:import-sqlite": "npm --workspace @aone-execution/local-server run storage:import-sqlite --",
+    "storage:psql": "npm --workspace @aone-execution/local-server run storage:psql --",
+    "desktop:start": "npm --workspace @aone-execution/desktop run dev",
+    "desktop:build": "npm --workspace @aone-execution/desktop run build",
+    "desktop:package": "npm run desktop:build",
+    "desktop:make": "npm run desktop:build",
+    "desktop:make:dmg": "npm --workspace @aone-execution/desktop run build:mac",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "npm --workspace @aone-execution/local-server run start",
+    "dev:web": "npm --workspace @aone-execution/workbench run dev",
+    "build:workbench": "npm --workspace @aone-execution/workbench run build",
+    "test:local": "npm run test --workspaces --if-present",
+    "check": "npm run validate && npm run test:local && npm run build:workbench && npm --workspace @aone-execution/desktop run check",
+    "validate": "npm run validate:versions && npm run validate:architecture && npm run validate:schemas && npm run validate:openapi && npm run validate:asyncapi && npm run validate:protobuf && npm run validate:ddl",
+    "validate:versions": "node scripts/validate_versions.mjs",
+    "validate:architecture": "python3 scripts/validate_architecture.py",
+    "validate:schemas": "node scripts/validate_contracts.mjs",
+    "validate:openapi": "redocly lint docs/contracts/control-plane.openapi.yaml",
+    "validate:asyncapi": "node scripts/validate_asyncapi.mjs",
+    "validate:protobuf": "cd docs/contracts && buf format --diff --exit-code && buf lint && buf build",
+    "validate:ddl": "bash scripts/validate_ddl.sh",
+    "skills:ingest": "node scripts/ingest-skills.mjs",
+    "skills:verify": "npm --workspace @aone-execution/desktop run sync:skills"
+  },
+  "devDependencies": {
+    "@asyncapi/parser": "3.6.1",
+    "@bufbuild/buf": "1.72.0",
+    "@redocly/cli": "2.44.2",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.9.0"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "keywords": [],
+  "allowScripts": {
+    "@bufbuild/buf@1.72.0": true,
+    "esbuild@0.28.2": true,
+    "fs-xattr@0.3.1": true,
+    "macos-alias@0.2.12": true,
+    "fsevents@2.3.3": true,
+    "@scarf/scarf": false,
+    "@embedded-postgres/darwin-arm64@18.4.0-beta.17": true
+  }
+}

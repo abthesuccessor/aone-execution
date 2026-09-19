@@ -1,0 +1,128 @@
+{
+  "completeness": "partial",
+  "deferred": [
+    {
+      "id": "remaining-source",
+      "paths": [
+        "apps/local-server/src/server.mjs",
+        "apps/local-server/src/planners.mjs",
+        "apps/local-server/src/database.mjs",
+        "apps/local-server/src/intent_compiler.mjs",
+        "apps/workbench/src"
+      ],
+      "reason": "Partial production-readiness review focused on core trust boundaries; exhaustive repository audit remains out of scope for this report."
+    },
+    {
+      "id": "dependency-and-package-runtime",
+      "paths": [
+        "package-lock.json",
+        "apps/desktop/src-tauri/Cargo.lock",
+        "apps/desktop/resources",
+        "generated"
+      ],
+      "reason": "Dependency advisory/decompression audits and packaged native runtime tests were not performed."
+    }
+  ],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [],
+  "explicitExclusions": [
+    {
+      "pattern": "node_modules",
+      "reason": "Dependency implementation not exhaustively audited."
+    },
+    {
+      "pattern": "generated/frame-infinite-gallery",
+      "reason": "Separate generated demonstration, outside core product review focus."
+    },
+    {
+      "pattern": "apps/desktop/resources/skills",
+      "reason": "Third-party content corpus not exhaustively audited."
+    }
+  ],
+  "includePaths": [
+    "."
+  ],
+  "inventoryStrategy": "directory",
+  "mode": "repository",
+  "openQuestions": [
+    {
+      "question": "Core review is partial: large server.mjs, planners.mjs, database.mjs and most frontend components were selectively inspected; bundled code, binaries and dependencies not exhaustively audited."
+    },
+    {
+      "question": "No live provider calls, full packaged-app shutdown test, cross-account exploit, dependency advisory audit, clean-Mac install, load/soak or restore drill was performed."
+    },
+    {
+      "question": "Effective Codex filesystem/network sandbox behavior and read-only confidentiality need separate runtime verification; declared tool classes are instructions rather than separately enforced permissions."
+    },
+    {
+      "question": "Third-party XLSX parsing/decompression limits need independent implementation and resource-isolation validation."
+    }
+  ],
+  "scanId": "24480af6-94e2-4bff-a6ed-d7617d78da4e",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "reported",
+      "id": "local-api-auth",
+      "label": "Local engine authentication and terminal authority",
+      "notes": "Source validation confirms missing client identity; loopback binding and browser Origin/Host protections reduce remote exposure.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "pty-bootstrap",
+      "label": "PTY interpreter startup",
+      "notes": "Python starts in repository cwd without isolated mode; fixed command text does not enforce module provenance.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "reported",
+      "id": "artifact-containment",
+      "label": "Workspace manifest and artifact containment",
+      "notes": "Inert local reproduction confirmed ancestor-symlink external capture. No deployed Codex sandbox escape or real data exfiltration is asserted.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "provider-secrets",
+      "label": "Provider endpoint and credential boundaries",
+      "notes": "Fixed hosted provider destinations and canonical secret names, redirect rejection, and loopback Ollama checks at provider_connections.mjs:51-185, chat_adapters.mjs:89-107, planners.mjs:77-119. Memory endpoints are explicitly configured and use separate credentials; no independent arbitrary credential forwarding finding established.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "proposal-authority",
+      "label": "Exact approval, proposal scope and reviewed memory",
+      "notes": "Exact hash and context admission (server.mjs:2725-2788), selected-node proposal checks (chat_routes.mjs:47-98,178-212), and current local memory validation (harness_memory.mjs:76-108; memory_adapters.mjs:42-45). API caller identity remains the separate reported failure.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "rendering",
+      "label": "Targeted model, terminal and artifact rendering",
+      "notes": "Inspected TerminalPanel.tsx:6-7,72 uses text rendering; no innerHTML/eval sink found in targeted searches; packaged/static script CSPs limit execution. This is not exhaustive frontend coverage.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "upload-resource-isolation",
+      "label": "Evidence parser limits and process isolation",
+      "notes": "evidence.mjs:10-29,292-312,320-386,416-424 bounds input, YAML aliases, declared ZIP sizes and extraction. XLSX dependency decompression implementation was not audited; malformed declared sizes bypass remains unproven.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "process-reliability",
+      "label": "Process lifetime and output bounds",
+      "notes": "Reliability plan covers planner TERM-only deadline (planners.mjs:401-434), absent planner/executor stdin error listeners, and unbounded provider JSON response parsing (planners.mjs:121-145). No exploit or production crash claimed.",
+      "receiptRefs": []
+    },
+    {
+      "disposition": "needs_follow_up",
+      "id": "startup-resources",
+      "label": "Startup modes, private data and package authority",
+      "notes": "Packaged uses app_data/engine-data/local.db, app_data/engine-data/object-store and HOME workspace root; embedded uses dataDir/state/local.db and workspaces. Rust precreates engine-data without explicit mode; actual ACL/umask privacy needs runtime validation. Packaged skills path is explicit and does not consume EGE_SKILLS_ROOT, unlike direct startup (main.rs:140-181; embedded.mjs:41-60; sidecar.mjs:36-58). Ad-hoc signing and absent native-picker grant are documented release/authority boundaries, not independent proven attacks.",
+      "receiptRefs": []
+    }
+  ]
+}

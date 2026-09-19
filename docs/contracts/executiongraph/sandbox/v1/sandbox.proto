@@ -1,0 +1,311 @@
+syntax = "proto3";
+
+package executiongraph.sandbox.v1;
+
+import "buf/validate/validate.proto";
+import "executiongraph/runtime/v1/runtime.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service SandboxNodeService {
+  rpc Invoke(stream InvokeRequest) returns (stream InvokeResponse);
+  rpc CancelInvocation(CancelInvocationRequest) returns (CancelInvocationResponse);
+}
+
+message InvokeRequest {
+  oneof frame {
+    option (buf.validate.oneof).required = true;
+
+    StartInvocation start = 1;
+    InputChunk input_chunk = 2;
+    BrokeredCapabilityResult capability_result = 3;
+    CancelInvocationRequest cancel = 4;
+    // Trusted-supervisor acknowledgement for a preceding sandbox upload.
+    SupervisorUploadReceipt upload_receipt = 5;
+  }
+}
+
+message InvokeResponse {
+  oneof frame {
+    option (buf.validate.oneof).required = true;
+
+    InvocationProgress progress = 1;
+    BrokeredCapabilityRequest capability_request = 2;
+    InvocationResult result = 3;
+    executiongraph.runtime.v1.RuntimeError error = 4;
+    // Bounded sandbox-to-supervisor bytes. The supervisor, not the sandbox,
+    // hashes, persists, tenant-scopes, and mints any resulting artifact ID.
+    SandboxUploadChunk upload_chunk = 5;
+  }
+}
+
+message StartInvocation {
+  option (buf.validate.message).cel = {
+    id: "start_invocation.replay_axes"
+    message: "execution_mode, replay_operation, and adapter_effect_mode must form a legal replay triple"
+    expression: "(this.replay_operation == 1 && ((this.execution_mode == 1 && this.adapter_effect_mode == 3) || (this.execution_mode == 3 && this.adapter_effect_mode in [2, 4]))) || (this.replay_operation == 2 && this.execution_mode == 2 && this.adapter_effect_mode == 4) || (this.replay_operation == 3 && ((this.execution_mode == 2 && this.adapter_effect_mode == 1) || (this.execution_mode == 3 && this.adapter_effect_mode == 2))) || (this.replay_operation == 4 && ((this.execution_mode == 2 && this.adapter_effect_mode == 1) || (this.execution_mode == 3 && this.adapter_effect_mode in [2, 4]) || (this.execution_mode == 1 && this.adapter_effect_mode in [3, 4])))"
+  };
+
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string activation_id = 2 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string attempt_id = 3 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 4 [(buf.validate.field).uint32.gt = 0];
+  string node_contract = 5;
+  string implementation_digest = 6 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string configuration_artifact_id = 7 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string input_manifest_artifact_id = 8 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 base_state_version = 9;
+  string read_set_manifest_artifact_id = 10 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  repeated string writable_paths = 11 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {
+        pattern: "^/([^/~]|~[01])*(/([^/~]|~[01])*)*$"
+        max_len: 2048
+      }
+    }
+  }];
+  repeated CapabilityHandle capability_handles = 12;
+  executiongraph.runtime.v1.BudgetSlice budget = 13 [(buf.validate.field).required = true];
+  executiongraph.runtime.v1.ExecutionMode execution_mode = 14 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  executiongraph.runtime.v1.ReplayOperation replay_operation = 15 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  executiongraph.runtime.v1.AdapterEffectMode adapter_effect_mode = 16 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string deterministic_seed = 17;
+  google.protobuf.Timestamp logical_time = 18 [(buf.validate.field).required = true];
+  executiongraph.runtime.v1.TraceContext trace = 19;
+  string tenant_id = 20 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string environment_id = 21 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string execution_id = 22 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string root_execution_id = 23 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string graph_version_id = 24 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string graph_source_hash = 25 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string compilation_id = 26 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string compiled_plan_id = 27 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string plan_hash = 28 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string plan_envelope_hash = 29 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string policy_snapshot_id = 30 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string policy_snapshot_hash = 31 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string dependency_lock_hash = 32 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string input_hash = 33 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  uint64 remaining_effect_calls = 34 [(buf.validate.field).uint64.lte = 4096];
+  executiongraph.runtime.v1.ExecutionScopeLineage scope_lineage = 35 [(buf.validate.field).required = true];
+  ArtifactTransferLimits artifact_transfer_limits = 36 [(buf.validate.field).required = true];
+}
+
+message ArtifactTransferLimits {
+  option (buf.validate.message).cel = {
+    id: "artifact_transfer_limits.ordering"
+    message: "total upload limit must be at least the per-upload limit"
+    expression: "this.max_total_upload_bytes >= this.max_upload_bytes && this.max_result_frame_bytes >= this.max_inline_state_value_bytes"
+  };
+
+  uint32 max_chunk_bytes = 1 [(buf.validate.field).uint32 = {
+    gt: 0
+    lte: 65536
+  }];
+  uint64 max_upload_bytes = 2 [(buf.validate.field).uint64.gt = 0];
+  uint64 max_total_upload_bytes = 3 [(buf.validate.field).uint64.gt = 0];
+  uint32 max_open_uploads = 4 [(buf.validate.field).uint32 = {
+    gt: 0
+    lte: 64
+  }];
+  uint32 max_inline_state_value_bytes = 5 [(buf.validate.field).uint32 = {
+    gt: 0
+    lte: 65536
+  }];
+  uint32 max_state_write_intents = 6 [(buf.validate.field).uint32 = {
+    gt: 0
+    lte: 1024
+  }];
+  uint64 max_result_frame_bytes = 7 [(buf.validate.field).uint64 = {
+    gt: 0
+    lte: 4194304
+  }];
+}
+
+message CapabilityHandle {
+  string handle_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 256
+  }];
+  string action = 2 [(buf.validate.field).string = {
+    pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+    max_len: 128
+  }];
+  ResourceRef resource = 3 [(buf.validate.field).required = true];
+  google.protobuf.Struct public_constraints = 4;
+  google.protobuf.Timestamp expires_at = 5 [(buf.validate.field).required = true];
+}
+
+message ResourceRef {
+  string kind = 1 [(buf.validate.field).string = {
+    pattern: "^[a-z][a-z0-9_]{0,63}$"
+    max_len: 64
+  }];
+  string id = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 768
+  }];
+  optional string version_digest = 3 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+}
+
+message InputChunk {
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 sequence = 2;
+  string port = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+  bytes data = 4 [(buf.validate.field).bytes.max_len = 65536];
+  bool end_of_port = 5;
+}
+
+message SandboxUploadChunk {
+  option (buf.validate.message).cel = {
+    id: "sandbox_upload_chunk.data"
+    message: "a non-terminal upload chunk must contain data"
+    expression: "this.end_of_upload || size(this.data) > 0"
+  };
+
+  enum Purpose {
+    PURPOSE_UNSPECIFIED = 0;
+    PURPOSE_CAPABILITY_ARGUMENTS = 1;
+    PURPOSE_INVOCATION_OUTPUT = 2;
+    PURPOSE_STATE_VALUE = 3;
+    PURPOSE_PROGRESS = 4;
+    PURPOSE_ERROR_DETAIL = 5;
+  }
+
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string upload_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 sequence = 3;
+  Purpose purpose = 4 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  bytes data = 5 [(buf.validate.field).bytes.max_len = 65536];
+  bool end_of_upload = 6;
+  string media_type = 7 [(buf.validate.field).string.max_len = 255];
+}
+
+message SupervisorUploadReceipt {
+  option (buf.validate.message).cel = {
+    id: "supervisor_upload_receipt.result"
+    message: "an upload receipt must contain accepted or rejected"
+    expression: "has(this.accepted) || has(this.rejected)"
+  };
+
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string upload_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  oneof result {
+    option (buf.validate.oneof).required = true;
+
+    executiongraph.runtime.v1.TrustedArtifactReference accepted = 3;
+    executiongraph.runtime.v1.RuntimeError rejected = 4;
+  }
+}
+
+message BrokeredCapabilityRequest {
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_request.arguments"
+    message: "capability arguments must be bounded inline bytes or a supervisor-minted artifact ID"
+    expression: "has(this.arguments_artifact_id) || has(this.inline_arguments)"
+  };
+
+  reserved 4, 6;
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string request_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string capability_handle_id = 3;
+  oneof arguments {
+    option (buf.validate.oneof).required = true;
+
+    // Must match an accepted SupervisorUploadReceipt for this invocation.
+    string arguments_artifact_id = 5 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+    bytes inline_arguments = 7 [(buf.validate.field).bytes.max_len = 65536];
+  }
+}
+
+message BrokeredCapabilityResult {
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.result"
+    message: "a capability result must contain an invocation result or a pre-invocation rejection"
+    expression: "has(this.result_artifact_id) || has(this.runtime_error) || has(this.pre_invocation_rejection)"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.receipt"
+    message: "invocation results require an effect receipt; pre-invocation rejection forbids one"
+    expression: "has(this.pre_invocation_rejection) ? !has(this.effect_receipt) : has(this.effect_receipt)"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.pre_invocation_disposition"
+    message: "pre-invocation rejection cannot require effect reconciliation"
+    expression: "!has(this.pre_invocation_rejection) || this.pre_invocation_rejection.retry_disposition != 3"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.artifact_committed"
+    message: "a result artifact requires a committed effect receipt"
+    expression: "!has(this.result_artifact_id) || (has(this.effect_receipt) && this.effect_receipt.outcome == 2)"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.ambiguous_reconcile"
+    message: "unknown or reconciling effects require a reconciliation-classified runtime error"
+    expression: "!has(this.effect_receipt) || ((this.effect_receipt.outcome in [4, 5]) == (has(this.runtime_error) && this.runtime_error.retry_disposition == 3))"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.committed_error"
+    message: "a committed effect with an error cannot be retried"
+    expression: "!has(this.effect_receipt) || this.effect_receipt.outcome != 2 || !has(this.runtime_error) || this.runtime_error.retry_disposition == 1"
+  };
+  option (buf.validate.message).cel = {
+    id: "brokered_capability_result.rejected_error"
+    message: "a destination-rejected effect cannot be retried"
+    expression: "!has(this.effect_receipt) || this.effect_receipt.outcome != 6 || (has(this.runtime_error) && this.runtime_error.retry_disposition == 1)"
+  };
+
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string request_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  oneof result {
+    option (buf.validate.oneof).required = true;
+
+    string result_artifact_id = 3 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+    executiongraph.runtime.v1.GatewayClassifiedError runtime_error = 4;
+    executiongraph.runtime.v1.GatewayClassifiedError pre_invocation_rejection = 6;
+  }
+  executiongraph.runtime.v1.ExternalEffectReceipt effect_receipt = 5;
+}
+
+message InvocationProgress {
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 sequence = 2;
+  string kind = 3;
+  // Must match an accepted SupervisorUploadReceipt for this invocation.
+  string artifact_id = 4 [(buf.validate.field).string.pattern = "^([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})?$"];
+  executiongraph.runtime.v1.MeteredUsage cumulative_usage = 5;
+}
+
+message InvocationResult {
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  // Must match an accepted SupervisorUploadReceipt for this invocation.
+  optional string output_artifact_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  repeated executiongraph.runtime.v1.StateWriteIntent state_write_intents = 3 [(buf.validate.field).repeated.max_items = 1024];
+  executiongraph.runtime.v1.MeteredUsage usage = 4;
+}
+
+message CancelInvocationRequest {
+  string invocation_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string reason_code = 2;
+  google.protobuf.Timestamp force_at = 3;
+}
+
+message CancelInvocationResponse {
+  bool acknowledged = 1;
+}

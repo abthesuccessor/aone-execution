@@ -1,0 +1,778 @@
+{
+  "documentType": "codex-security.findings",
+  "findings": [
+    {
+      "attackPath": {
+        "dataflow": {
+          "summary": "TCP peer forges loopback Host and matching Origin, lists graphs, opens /api/graphs/:id/terminal and submits input as server owner."
+        },
+        "impact": {
+          "level": "high",
+          "why": "Read/write and execute as the desktop owner across local account separation."
+        },
+        "likelihood": {
+          "level": "medium",
+          "why": "Requires a local foothold or another local account, not Internet exposure."
+        },
+        "reachability": {
+          "attacker": "Different local OS account with loopback TCP access; no same-user privilege escalation asserted.",
+          "entrypoint": "Loopback graph and terminal HTTP routes",
+          "summary": "Requires another local OS account/process with loopback access while the engine is running and Python available. Arbitrary remote browser origins are rejected."
+        },
+        "summary": "A local account connects to the engine, uses accepted loopback Host/Origin headers, selects or creates an idle bound graph, and opens and writes to its terminal."
+      },
+      "codeEvidence": [
+        {
+          "code": "function enforceBrowserBoundary(request) {\n    const hostname = hostNameFromHeader(request.headers.host);\n    if (!hostname || !['127.0.0.1', 'localhost', '[::1]', '::1'].includes(hostname)) {\n      throw new HttpError(403, 'HOST_REJECTED', 'Only loopback Host headers are accepted.');\n    }\n    const origin = request.headers.origin;\n    if (origin) {\n      const sameOrigin = `http://${request.headers.host}`;\n      const allowed = new Set([...browserOrigins, sameOrigin]);\n      if (!allowed.has(origin)) {\n        throw new HttpError(403, 'ORIGIN_REJECTED', 'Browser Origin is not allowed.');\n      }\n    }\n    if (MUTATING_METHODS.has(request.method)) {\n      if (!origin) throw new HttpError(403, 'ORIGIN_REQUIRED', 'Mutating browser requests require an allowed Origin.');\n    }",
+          "endLine": 2208,
+          "explanation": "The only global request gate validates Host and Origin values; a native TCP client controls both and supplies an accepted pair.",
+          "id": "local-api-0",
+          "label": "Browser guard accepts caller-selected headers",
+          "path": "apps/local-server/src/server.mjs",
+          "role": "root_control",
+          "startLine": 2193
+        },
+        {
+          "code": "const child = spawnImpl('python3', ['-u', '-c', PTY_BRIDGE], { cwd: workspacePath, env: cleanEnvironment(environment), stdio: ['pipe', 'pipe', 'pipe'], detached: true });",
+          "explanation": "A routed caller can launch a PTY process in the bound workspace under the engine's OS account.",
+          "id": "local-api-1",
+          "label": "Privileged terminal creation",
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 130
+        },
+        {
+          "code": "session.process.stdin.write(body.input);",
+          "explanation": "Input supplied by the same unauthenticated caller is written directly to that shell.",
+          "id": "local-api-2",
+          "label": "Terminal command input",
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 166
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Parent traced the shared route guard, graph API, terminal spawn and stdin sink; absence of any session credential is explicit."
+      },
+      "findingId": "csf_7235de8520c15ef8c2d69033",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:37b02332080a752383911852dc4e81299ff3aa70f50a7a2d6191a5e1c589facc"
+      },
+      "identity": {
+        "anchor": "unauthenticated-loopback-terminal-permits-cross-account-code-execution"
+      },
+      "locations": [
+        {
+          "endLine": 2208,
+          "path": "apps/local-server/src/server.mjs",
+          "role": "root_control",
+          "startLine": 2193
+        },
+        {
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 130
+        },
+        {
+          "endLine": 166,
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 159
+        },
+        {
+          "endLine": 181,
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "role": "propagation",
+          "startLine": 163
+        }
+      ],
+      "occurrenceId": "occ_23803b190086f90307d2fdc0",
+      "provenance": {
+        "candidateId": "BASE-001",
+        "originalCandidates": [
+          {
+            "attacker": "Different local OS account with loopback TCP access; no same-user privilege escalation asserted.",
+            "confidence": "high",
+            "counterevidence": "Loopback-only binding, Host and Origin validation protect ordinary remote websites. Random port is not client authentication. Opening terminal is intentional for owner.",
+            "cwe": "CWE-306",
+            "dataflow": "TCP peer forges loopback Host and matching Origin, lists graphs, opens /api/graphs/:id/terminal and submits input as server owner.",
+            "evidence": [
+              {
+                "code": "function enforceBrowserBoundary(request) {\n    const hostname = hostNameFromHeader(request.headers.host);\n    if (!hostname || !['127.0.0.1', 'localhost', '[::1]', '::1'].includes(hostname)) {\n      throw new HttpError(403, 'HOST_REJECTED', 'Only loopback Host headers are accepted.');\n    }\n    const origin = request.headers.origin;\n    if (origin) {\n      const sameOrigin = `http://${request.headers.host}`;\n      const allowed = new Set([...browserOrigins, sameOrigin]);\n      if (!allowed.has(origin)) {\n        throw new HttpError(403, 'ORIGIN_REJECTED', 'Browser Origin is not allowed.');\n      }\n    }\n    if (MUTATING_METHODS.has(request.method)) {\n      if (!origin) throw new HttpError(403, 'ORIGIN_REQUIRED', 'Mutating browser requests require an allowed Origin.');\n    }",
+                "endLine": 2208,
+                "path": "apps/local-server/src/server.mjs",
+                "startLine": 2193
+              },
+              {
+                "code": "const child = spawnImpl('python3', ['-u', '-c', PTY_BRIDGE], { cwd: workspacePath, env: cleanEnvironment(environment), stdio: ['pipe', 'pipe', 'pipe'], detached: true });",
+                "path": "apps/local-server/src/terminal_routes.mjs",
+                "startLine": 130
+              },
+              {
+                "code": "session.process.stdin.write(body.input);",
+                "path": "apps/local-server/src/terminal_routes.mjs",
+                "startLine": 166
+              }
+            ],
+            "remediation": "Per-launch IPC-delivered credential on all API reads/writes/SSE or private per-user authenticated native transport.",
+            "severity": "high",
+            "title": "Unauthenticated loopback terminal permits cross-account code execution"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Authenticate every private API read, write and stream with an unpredictable per-launch capability delivered through trusted native IPC, or use a private per-user transport with peer identity checks. Retain Origin/Host checks and remove developer origins from packaged mode. Do not place the capability in URLs or logs.",
+      "remediationTests": [
+        "Missing, wrong, expired and previous-launch credentials fail on graph, terminal, provider, memory, execution and SSE routes.",
+        "A separate OS account cannot access the running owner's engine.",
+        "Packaged mode rejects localhost developer origins."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "local-api-0",
+          "local-api-1",
+          "local-api-2"
+        ],
+        "summary": "The shared `enforceBrowserBoundary` gate checks browser headers but establishes no client identity. `route` dispatches to graph and terminal handlers after this gate. Terminal workspace validation verifies directory existence and execution state, then spawns a shell and accepts stdin; it never authenticates the caller as the desktop owner."
+      },
+      "ruleId": "missing-authentication.local-engine",
+      "severity": {
+        "level": "high",
+        "rationale": "Owner-privileged command execution crosses local OS account separation; requires local host access rather than an Internet-reachable service."
+      },
+      "summary": "A different local OS account with loopback access can forge the accepted Host and Origin headers, list or create a graph, and open and write to the desktop owner's terminal. The server authenticates no client.",
+      "taxonomy": {
+        "category": "missing-authentication",
+        "cwe": [
+          "CWE-306"
+        ]
+      },
+      "title": "Unauthenticated loopback terminal permits cross-account code execution",
+      "validation": {
+        "counterEvidence": [
+          "Loopback-only binding, Host and Origin validation protect ordinary remote websites. Random port is not client authentication. Opening terminal is intentional for owner."
+        ],
+        "limitations": [
+          "No cross-account or live desktop exploit was executed; local TCP reachability is required. Same-user clients are not claimed as an OS privilege escalation."
+        ],
+        "method": "parent static source trace",
+        "summary": "Parent verified loopback-only binding, the explicit auth:none session route, accepted same-origin calculation, terminal workspace checks, process spawn and input sink. A different local account can construct the accepted headers without accessing an owner credential."
+      }
+    },
+    {
+      "attackPath": {
+        "dataflow": {
+          "summary": "workspace cwd -> python3 -u -c -> default Python cwd module lookup -> import pty -> owner-privileged repository code before shell input."
+        },
+        "impact": {
+          "level": "high",
+          "why": "Arbitrary code execution under the desktop account."
+        },
+        "likelihood": {
+          "level": "medium",
+          "why": "Depends on opening an attacker-provided project terminal."
+        },
+        "reachability": {
+          "attacker": "Repository author supplies pty.py; owner binds repository and opens Terminal.",
+          "entrypoint": "POST /api/graphs/:id/terminal",
+          "summary": "The attacker controls ordinary repository content; the user must select that repository and open Terminal. No approved AI execution is required."
+        },
+        "summary": "An attacker supplies a repository with pty.py; the user binds it and opens Terminal; the bridge imports that file as the desktop owner."
+      },
+      "codeEvidence": [
+        {
+          "code": "const PTY_BRIDGE = String.raw`\nimport os, pty, select, sys, signal, errno, struct, fcntl, termios\npid, master = pty.fork()\nif pid == 0:\n    shell = '/bin/zsh' if os.path.exists('/bin/zsh') else '/bin/sh'\n    os.execv(shell, [shell, '-f', '-i', '-o', 'NO_BANG_HIST', '-o', 'NO_ZLE'] if shell.endswith('zsh') else [shell, '-i'])",
+          "endLine": 17,
+          "explanation": "Importing pty can resolve repository-controlled pty.py before the intended shell is started.",
+          "id": "pty-import-0",
+          "label": "Bridge imports standard library",
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 12
+        },
+        {
+          "code": "const child = spawnImpl('python3', ['-u', '-c', PTY_BRIDGE], { cwd: workspacePath, env: cleanEnvironment(environment), stdio: ['pipe', 'pipe', 'pipe'], detached: true });",
+          "explanation": "The workspace becomes Python's current directory and no isolated-mode argument removes it from module lookup.",
+          "id": "pty-import-1",
+          "label": "Python launched in repository",
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "root_control",
+          "startLine": 130
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Fixed import and spawn arguments establish current-directory module resolution; Python command-line documentation confirms the missing isolation behavior."
+      },
+      "findingId": "csf_43ae76478209e4872bf3d399",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:4e59adac39751e48ab7fe87d62bda20fe3c58194efe3be752242c1b2fd4f3947"
+      },
+      "identity": {
+        "anchor": "opening-an-untrusted-workspace-terminal-imports-repository-python-modules"
+      },
+      "locations": [
+        {
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "root_control",
+          "startLine": 130
+        },
+        {
+          "endLine": 17,
+          "path": "apps/local-server/src/terminal_routes.mjs",
+          "role": "sink",
+          "startLine": 12
+        }
+      ],
+      "occurrenceId": "occ_2fe4265ad384d9fb77373d61",
+      "provenance": {
+        "candidateId": "BASE-002",
+        "originalCandidates": [
+          {
+            "attacker": "Repository author supplies pty.py; owner binds repository and opens Terminal.",
+            "confidence": "high",
+            "counterevidence": "Fixed source/argv, stripped PYTHONPATH, zsh -f do not remove Python -c current directory lookup. Requires opening terminal in supplied repository.",
+            "cwe": "CWE-427",
+            "dataflow": "workspace cwd -> python3 -u -c -> default Python cwd module lookup -> import pty -> owner-privileged repository code before shell input.",
+            "evidence": [
+              {
+                "code": "const PTY_BRIDGE = String.raw`\nimport os, pty, select, sys, signal, errno, struct, fcntl, termios\npid, master = pty.fork()\nif pid == 0:\n    shell = '/bin/zsh' if os.path.exists('/bin/zsh') else '/bin/sh'\n    os.execv(shell, [shell, '-f', '-i', '-o', 'NO_BANG_HIST', '-o', 'NO_ZLE'] if shell.endswith('zsh') else [shell, '-i'])",
+                "endLine": 17,
+                "path": "apps/local-server/src/terminal_routes.mjs",
+                "startLine": 12
+              },
+              {
+                "code": "const child = spawnImpl('python3', ['-u', '-c', PTY_BRIDGE], { cwd: workspacePath, env: cleanEnvironment(environment), stdio: ['pipe', 'pipe', 'pipe'], detached: true });",
+                "path": "apps/local-server/src/terminal_routes.mjs",
+                "startLine": 130
+              }
+            ],
+            "remediation": "Trusted Python with isolated -I startup; inert shadow-module regression.",
+            "severity": "high",
+            "title": "Opening an untrusted workspace terminal imports attacker-controlled Python modules"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Run a trusted Python interpreter in isolated mode (`-I`) for the PTY bridge, or import only from a trusted startup directory before changing the child shell into the workspace. Keep repository content and user site packages out of bootstrap imports.",
+      "remediationTests": [
+        "Opening Terminal in a fixture with inert pty.py and select.py does not import either file or produce a marker.",
+        "Normal shell startup, cwd, input, interrupt and shutdown behavior still pass."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "pty-import-1",
+          "pty-import-0"
+        ],
+        "summary": "`assertWorkspace` returns the bound repository path. Terminal creation uses it as Python cwd with `-u -c`; `PTY_BRIDGE` immediately imports `pty`. A clean environment removes PYTHONPATH but not Python's default current-directory search path, so repository source can shadow the expected standard library."
+      },
+      "ruleId": "untrusted-search-path.pty-python",
+      "severity": {
+        "level": "high",
+        "rationale": "An untrusted repository author can cause owner-privileged execution on terminal open, before the user submits a shell command."
+      },
+      "summary": "Terminal startup invokes Python with `-c` in the selected repository. The bridge imports `pty` before starting the shell, allowing a repository `pty.py` to run immediately when the user opens Terminal.",
+      "taxonomy": {
+        "category": "untrusted-search-path",
+        "cwe": [
+          "CWE-427"
+        ]
+      },
+      "title": "Opening an untrusted workspace terminal imports repository Python modules",
+      "validation": {
+        "counterEvidence": [
+          "Fixed source/argv, stripped PYTHONPATH, zsh -f do not remove Python -c current directory lookup. Requires opening terminal in supplied repository."
+        ],
+        "limitations": [
+          "No malicious module was executed; requires the user to open Terminal in an attacker-controlled repository."
+        ],
+        "method": "parent source trace and official Python command-line reference",
+        "summary": "Parent verified the bridge imports, spawn arguments and environment allowlist. Python -c prepends the current directory unless isolated/safe-path options apply."
+      }
+    },
+    {
+      "attackPath": {
+        "dataflow": {
+          "summary": "Git indexed descendant -> lexical containment -> ancestor symlink resolution -> engine file read -> captured artifact -> accepted completeNode output"
+        },
+        "impact": {
+          "level": "medium",
+          "why": "External data can be misattributed to the project and enter stored/shared execution context."
+        },
+        "likelihood": {
+          "level": "medium",
+          "why": "Requires a suitable filesystem layout and an accepted execution for onward persistence."
+        },
+        "reachability": {
+          "attacker": "Untrusted repository content or generated workspace changes",
+          "entrypoint": "Workspace manifest and changed-artifact capture",
+          "summary": "Requires attacker influence over workspace contents during an authorized execution and an engine-readable external target. Runtime reproduction proves the reader boundary; accepted receipt and later node consumption are additional prerequisites."
+        },
+        "summary": "A workspace mutation replaces a tracked directory with a symlink to engine-readable data outside the workspace. The indexed descendant passes lexical containment and enters artifact capture; accepted outputs may persist and be included in later dependency context."
+      },
+      "codeEvidence": [
+        {
+          "code": "    const absolutePath = resolve(canonicalRoot, path);\n    const relation = relative(canonicalRoot, absolutePath);\n    if (relation.startsWith('..') || isAbsolute(relation)) {\n      skipped.push({ path, reason: 'OUTSIDE_WORKSPACE' });\n      continue;",
+          "endLine": 254,
+          "explanation": "resolve and relative reject textual traversal but do not resolve a symlink in an ancestor directory.",
+          "id": "artifact-path",
+          "label": "Artifact path remains lexical",
+          "path": "apps/local-server/src/execution_adapters.mjs",
+          "role": "propagation",
+          "startLine": 250
+        },
+        {
+          "code": "    let metadata;\n    try {\n      metadata = await lstat(absolutePath);\n    } catch (error) {\n      skipped.push({ path, reason: error.code === 'ENOENT' ? 'DELETED' : 'UNREADABLE' });\n      continue;\n    }\n    if (!metadata.isFile() || metadata.size > MAX_ARTIFACT_FILE_BYTES || totalBytes + metadata.size > MAX_ARTIFACT_TOTAL_BYTES) {\n      skipped.push({ path, reason: !metadata.isFile() ? 'NOT_REGULAR_FILE' : 'SIZE_LIMIT' });\n      continue;\n    }\n    const bytes = await readFile(absolutePath);",
+          "endLine": 267,
+          "explanation": "lstat rejects a leaf symlink but follows an ancestor link. The resulting external regular file passes the checks and readFile reads its bytes.",
+          "id": "artifact-read",
+          "label": "Final-component check follows ancestor symlinks",
+          "path": "apps/local-server/src/execution_adapters.mjs",
+          "role": "root_control",
+          "startLine": 256
+        },
+        {
+          "code": "    let bytes;\n    if (metadata.isSymbolicLink()) bytes = Buffer.from(`symlink:${await readlink(absolutePath)}`);\n    else if (metadata.isFile()) bytes = await readFile(absolutePath);\n    else continue;\n    if (bytes.length > MAX_WORKSPACE_FILE_BYTES) {",
+          "endLine": 169,
+          "explanation": "Git's cached file path can survive replacement of its parent with a symlink; final-component lstat makes the external descendant appear regular in the manifest.",
+          "id": "manifest-read",
+          "label": "Indexed descendant also enters manifest",
+          "path": "apps/local-server/src/execution_adapters.mjs",
+          "role": "propagation",
+          "startLine": 165
+        },
+        {
+          "code": "            ...result.workspaceArtifacts.artifacts,\n          ],\n          receiptArtifact: { name: receiptName, mediaType: 'application/json', content: JSON.stringify(receiptDocument, null, 2) },\n          receiptDocument,\n          workspaceBaseline: advancedWorkspaceBaseline,\n        });",
+          "endLine": 1710,
+          "explanation": "Once an execution satisfies receipt validation, captured file contents are passed to completeNode for durable persistence; dependency context can later include these artifacts.",
+          "id": "artifact-persist",
+          "label": "Accepted artifact reaches durable node output",
+          "path": "apps/local-server/src/server.mjs",
+          "role": "outcome",
+          "startLine": 1705
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Parent reproduced both manifest inclusion and artifact content capture with a temporary Git fixture and an inert external canary."
+      },
+      "findingId": "csf_7849024f796fbd50e0d7a3a7",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:b92f75fb61f5cd530693ad53f5190ca47907374f78eefc29d707681400f92d71"
+      },
+      "identity": {
+        "anchor": "workspace-artifact-capture-follows-symlinked-directories-outside-the-project"
+      },
+      "locations": [
+        {
+          "endLine": 267,
+          "path": "apps/local-server/src/execution_adapters.mjs",
+          "role": "root_control",
+          "startLine": 258
+        },
+        {
+          "endLine": 167,
+          "path": "apps/local-server/src/execution_adapters.mjs",
+          "role": "propagation",
+          "startLine": 142
+        },
+        {
+          "endLine": 1710,
+          "path": "apps/local-server/src/server.mjs",
+          "role": "outcome",
+          "startLine": 1693
+        }
+      ],
+      "occurrenceId": "occ_8a88237a44678a4ce7cd8730",
+      "provenance": {
+        "candidateId": "BASE-003",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "counterevidence": "Direct symlink leaves handled; deployed Codex sandbox policy may prevent creating certain links. Cross-workspace artifact containment failure is the claim; arbitrary sandbox privilege escalation is not.",
+            "cwe": "CWE-59",
+            "dataflow": "Tracked capture/id_rsa remains in git index after capture becomes symlink to external directory; lexical resolve/lstat/readFile follows ancestor link, captures outside bytes, persists artifact and passes dependency context.",
+            "locations": [
+              {
+                "endLine": 177,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "startLine": 142
+              },
+              {
+                "endLine": 275,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "startLine": 233
+              },
+              {
+                "endLine": 1707,
+                "path": "apps/local-server/src/server.mjs",
+                "startLine": 1693
+              }
+            ],
+            "severity": "medium",
+            "title": "Workspace artifact capture follows parent directory symlinks"
+          }
+        ],
+        "previousFindings": [
+          {
+            "attackPath": {
+              "dataflow": {
+                "summary": "Git indexed descendant -> lexical containment -> ancestor symlink resolution -> engine file read -> captured artifact -> accepted completeNode output"
+              },
+              "impact": {
+                "level": "medium",
+                "why": "External data can be misattributed to the project and enter stored/shared execution context."
+              },
+              "likelihood": {
+                "level": "medium",
+                "why": "Requires a suitable filesystem layout and an accepted execution for onward persistence."
+              },
+              "reachability": {
+                "attacker": "Untrusted repository content or generated workspace changes",
+                "entrypoint": "Workspace manifest and changed-artifact capture",
+                "summary": "Requires attacker influence over workspace contents during an authorized execution and an engine-readable external target. Runtime reproduction proves the reader boundary; accepted receipt and later node consumption are additional prerequisites."
+              },
+              "summary": "A workspace mutation replaces a tracked directory with a symlink to engine-readable data outside the workspace. The indexed descendant passes lexical containment and enters artifact capture; accepted outputs may persist and be included in later dependency context."
+            },
+            "codeEvidence": [
+              {
+                "code": "    const absolutePath = resolve(canonicalRoot, path);\n    const relation = relative(canonicalRoot, absolutePath);\n    if (relation.startsWith('..') || isAbsolute(relation)) {\n      skipped.push({ path, reason: 'OUTSIDE_WORKSPACE' });\n      continue;",
+                "endLine": 254,
+                "explanation": "resolve and relative reject textual traversal but do not resolve a symlink in an ancestor directory.",
+                "id": "artifact-path",
+                "label": "Artifact path remains lexical",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 250
+              },
+              {
+                "code": "    let metadata;\n    try {\n      metadata = await lstat(absolutePath);\n    } catch (error) {\n      skipped.push({ path, reason: error.code === 'ENOENT' ? 'DELETED' : 'UNREADABLE' });\n      continue;\n    }\n    if (!metadata.isFile() || metadata.size > MAX_ARTIFACT_FILE_BYTES || totalBytes + metadata.size > MAX_ARTIFACT_TOTAL_BYTES) {\n      skipped.push({ path, reason: !metadata.isFile() ? 'NOT_REGULAR_FILE' : 'SIZE_LIMIT' });\n      continue;\n    }\n    const bytes = await readFile(absolutePath);",
+                "endLine": 267,
+                "explanation": "lstat rejects a leaf symlink but follows an ancestor link. The resulting external regular file passes the checks and readFile reads its bytes.",
+                "id": "artifact-read",
+                "label": "Final-component check follows ancestor symlinks",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "root_control",
+                "startLine": 256
+              },
+              {
+                "code": "    let bytes;\n    if (metadata.isSymbolicLink()) bytes = Buffer.from(`symlink:${await readlink(absolutePath)}`);\n    else if (metadata.isFile()) bytes = await readFile(absolutePath);\n    else continue;\n    if (bytes.length > MAX_WORKSPACE_FILE_BYTES) {",
+                "endLine": 169,
+                "explanation": "Git's cached file path can survive replacement of its parent with a symlink; final-component lstat makes the external descendant appear regular in the manifest.",
+                "id": "manifest-read",
+                "label": "Indexed descendant also enters manifest",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 165
+              },
+              {
+                "code": "            ...result.workspaceArtifacts.artifacts,\n          ],\n          receiptArtifact: { name: receiptName, mediaType: 'application/json', content: JSON.stringify(receiptDocument, null, 2) },\n          receiptDocument,\n          workspaceBaseline: advancedWorkspaceBaseline,\n        });",
+                "endLine": 1707,
+                "explanation": "Once an execution satisfies receipt validation, captured file contents are passed to completeNode for durable persistence; dependency context can later include these artifacts.",
+                "id": "artifact-persist",
+                "label": "Accepted artifact reaches durable node output",
+                "path": "apps/local-server/src/server.mjs",
+                "role": "outcome",
+                "startLine": 1702
+              }
+            ],
+            "confidence": {
+              "level": "high",
+              "rationale": "Parent reproduced both manifest inclusion and artifact content capture with a temporary Git fixture and an inert external canary."
+            },
+            "identity": {
+              "anchor": "workspace-artifact-capture-follows-symlinked-directories-outside-the-project"
+            },
+            "locations": [
+              {
+                "endLine": 267,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "root_control",
+                "startLine": 258
+              },
+              {
+                "endLine": 167,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 142
+              },
+              {
+                "endLine": 1707,
+                "path": "apps/local-server/src/server.mjs",
+                "role": "outcome",
+                "startLine": 1693
+              }
+            ],
+            "provenance": {
+              "candidateId": "BASE-003",
+              "originalCandidates": [
+                {
+                  "confidence": "high",
+                  "counterevidence": "Direct symlink leaves handled; deployed Codex sandbox policy may prevent creating certain links. Cross-workspace artifact containment failure is the claim; arbitrary sandbox privilege escalation is not.",
+                  "cwe": "CWE-59",
+                  "dataflow": "Tracked capture/id_rsa remains in git index after capture becomes symlink to external directory; lexical resolve/lstat/readFile follows ancestor link, captures outside bytes, persists artifact and passes dependency context.",
+                  "locations": [
+                    {
+                      "endLine": 177,
+                      "path": "apps/local-server/src/execution_adapters.mjs",
+                      "startLine": 142
+                    },
+                    {
+                      "endLine": 275,
+                      "path": "apps/local-server/src/execution_adapters.mjs",
+                      "startLine": 233
+                    },
+                    {
+                      "endLine": 1707,
+                      "path": "apps/local-server/src/server.mjs",
+                      "startLine": 1693
+                    }
+                  ],
+                  "severity": "medium",
+                  "title": "Workspace artifact capture follows parent directory symlinks"
+                }
+              ],
+              "source": "local_plugin"
+            },
+            "remediation": "Enforce canonical containment for every ancestor and the opened file in both manifest and artifact reads; use no-follow or descriptor-relative traversal with race-resistant checks. Reject paths whose parent chain escapes the pinned workspace, including tracked paths. Perform bounded reads on verified handles.",
+            "remediationTests": [
+              "A tracked descendant under an ancestor symlink to an inert external file is rejected or skipped in both manifest and artifact capture.",
+              "Race changing an ancestor between validation and open cannot include external bytes.",
+              "Direct symlink behavior, ordinary contained files and receipts continue to work."
+            ],
+            "rootCause": {
+              "evidenceRefs": [
+                "manifest-read",
+                "artifact-path",
+                "artifact-read",
+                "artifact-persist"
+              ],
+              "summary": "`git ls-files --cached --others` supplies indexed descendant names even after an ancestor directory changes to a symlink. Both manifest capture and artifact reading use lexical containment and final-component lstat. Ancestor symlinks therefore redirect the engine's file read outside the selected project. Accepted node outputs then persist the returned contents."
+            },
+            "ruleId": "symlink-following.workspace-artifact-capture",
+            "severity": {
+              "level": "medium",
+              "rationale": "A workspace-controlled ancestor link crosses the intended project artifact boundary and can copy engine-readable external data into artifacts. Persistence and onward provider context require an accepted execution."
+            },
+            "summary": "The workspace manifest and artifact reader validate lexical paths and only lstat the final component. An indexed path under a directory replaced with a symlink can read an external file and include its contents as a project artifact.",
+            "taxonomy": {
+              "category": "improper-symlink-resolution",
+              "cwe": [
+                "CWE-59"
+              ]
+            },
+            "title": "Workspace artifact capture follows symlinked directories outside the project",
+            "validation": {
+              "assertions": [
+                "manifestContainsExternalDescendant=true",
+                "externalCanaryCaptured=true",
+                "skipped=[]"
+              ],
+              "counterEvidence": [
+                "Leaf symlinks are recorded as links in manifests and excluded as artifact files.",
+                "An accepted receipt is required before server persistence; creating the symlink alone does not automatically exfiltrate data."
+              ],
+              "limitations": [
+                "No user files or secrets were accessed.",
+                "No live Codex run or provider exfiltration was performed.",
+                "Any claim of escaping the Codex OS sandbox depends on its effective filesystem policy and is not asserted."
+              ],
+              "method": "parent static trace plus inert local fixture reproduction",
+              "summary": "In a temporary Git repository, tracked capture/canary.txt was replaced by an ancestor symlink to a sibling fixture directory. The manifest still included capture/canary.txt, changed paths included it, and artifact reading returned the external canary with no skipped record. Fixture cleanup completed."
+            }
+          },
+          {
+            "attackPath": {
+              "dataflow": {
+                "summary": "Git indexed descendant -> lexical containment -> ancestor symlink resolution -> engine file read -> captured artifact -> accepted completeNode output"
+              },
+              "impact": {
+                "level": "medium",
+                "why": "External data can be misattributed to the project and enter stored/shared execution context."
+              },
+              "likelihood": {
+                "level": "medium",
+                "why": "Requires a suitable filesystem layout and an accepted execution for onward persistence."
+              },
+              "reachability": {
+                "attacker": "Untrusted repository content or generated workspace changes",
+                "entrypoint": "Workspace manifest and changed-artifact capture",
+                "summary": "Requires attacker influence over workspace contents during an authorized execution and an engine-readable external target. Runtime reproduction proves the reader boundary; accepted receipt and later node consumption are additional prerequisites."
+              },
+              "summary": "A workspace mutation replaces a tracked directory with a symlink to engine-readable data outside the workspace. The indexed descendant passes lexical containment and enters artifact capture; accepted outputs may persist and be included in later dependency context."
+            },
+            "codeEvidence": [
+              {
+                "code": "    const absolutePath = resolve(canonicalRoot, path);\n    const relation = relative(canonicalRoot, absolutePath);\n    if (relation.startsWith('..') || isAbsolute(relation)) {\n      skipped.push({ path, reason: 'OUTSIDE_WORKSPACE' });\n      continue;",
+                "endLine": 254,
+                "explanation": "resolve and relative reject textual traversal but do not resolve a symlink in an ancestor directory.",
+                "id": "artifact-path",
+                "label": "Artifact path remains lexical",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 250
+              },
+              {
+                "code": "    let metadata;\n    try {\n      metadata = await lstat(absolutePath);\n    } catch (error) {\n      skipped.push({ path, reason: error.code === 'ENOENT' ? 'DELETED' : 'UNREADABLE' });\n      continue;\n    }\n    if (!metadata.isFile() || metadata.size > MAX_ARTIFACT_FILE_BYTES || totalBytes + metadata.size > MAX_ARTIFACT_TOTAL_BYTES) {\n      skipped.push({ path, reason: !metadata.isFile() ? 'NOT_REGULAR_FILE' : 'SIZE_LIMIT' });\n      continue;\n    }\n    const bytes = await readFile(absolutePath);",
+                "endLine": 267,
+                "explanation": "lstat rejects a leaf symlink but follows an ancestor link. The resulting external regular file passes the checks and readFile reads its bytes.",
+                "id": "artifact-read",
+                "label": "Final-component check follows ancestor symlinks",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "root_control",
+                "startLine": 256
+              },
+              {
+                "code": "    let bytes;\n    if (metadata.isSymbolicLink()) bytes = Buffer.from(`symlink:${await readlink(absolutePath)}`);\n    else if (metadata.isFile()) bytes = await readFile(absolutePath);\n    else continue;\n    if (bytes.length > MAX_WORKSPACE_FILE_BYTES) {",
+                "endLine": 169,
+                "explanation": "Git's cached file path can survive replacement of its parent with a symlink; final-component lstat makes the external descendant appear regular in the manifest.",
+                "id": "manifest-read",
+                "label": "Indexed descendant also enters manifest",
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 165
+              },
+              {
+                "code": "            ...result.workspaceArtifacts.artifacts,\n          ],\n          receiptArtifact: { name: receiptName, mediaType: 'application/json', content: JSON.stringify(receiptDocument, null, 2) },\n          receiptDocument,\n          workspaceBaseline: advancedWorkspaceBaseline,\n        });",
+                "endLine": 1707,
+                "explanation": "Once an execution satisfies receipt validation, captured file contents are passed to completeNode for durable persistence; dependency context can later include these artifacts.",
+                "id": "artifact-persist",
+                "label": "Accepted artifact reaches durable node output",
+                "path": "apps/local-server/src/server.mjs",
+                "role": "outcome",
+                "startLine": 1702
+              }
+            ],
+            "confidence": {
+              "level": "high",
+              "rationale": "Parent reproduced both manifest inclusion and artifact content capture with a temporary Git fixture and an inert external canary."
+            },
+            "locations": [
+              {
+                "endLine": 267,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "root_control",
+                "startLine": 258
+              },
+              {
+                "endLine": 167,
+                "path": "apps/local-server/src/execution_adapters.mjs",
+                "role": "propagation",
+                "startLine": 142
+              },
+              {
+                "endLine": 1707,
+                "path": "apps/local-server/src/server.mjs",
+                "role": "outcome",
+                "startLine": 1693
+              }
+            ],
+            "provenance": {
+              "candidateId": "BASE-003",
+              "source": "local_plugin"
+            },
+            "remediation": "Enforce canonical containment for every ancestor and the opened file in both manifest and artifact reads; use no-follow or descriptor-relative traversal with race-resistant checks. Reject paths whose parent chain escapes the pinned workspace, including tracked paths. Perform bounded reads on verified handles.",
+            "remediationTests": [
+              "A tracked descendant under an ancestor symlink to an inert external file is rejected or skipped in both manifest and artifact capture.",
+              "Race changing an ancestor between validation and open cannot include external bytes.",
+              "Direct symlink behavior, ordinary contained files and receipts continue to work."
+            ],
+            "rootCause": {
+              "evidenceRefs": [
+                "manifest-read",
+                "artifact-path",
+                "artifact-read",
+                "artifact-persist"
+              ],
+              "summary": "`git ls-files --cached --others` supplies indexed descendant names even after an ancestor directory changes to a symlink. Both manifest capture and artifact reading use lexical containment and final-component lstat. Ancestor symlinks therefore redirect the engine's file read outside the selected project. Accepted node outputs then persist the returned contents."
+            },
+            "ruleId": "symlink-following.workspace-artifact-capture",
+            "severity": {
+              "level": "medium",
+              "rationale": "A workspace-controlled ancestor link crosses the intended project artifact boundary and can copy engine-readable external data into artifacts. Persistence and onward provider context require an accepted execution."
+            },
+            "summary": "The workspace manifest and artifact reader validate lexical paths and only lstat the final component. An indexed path under a directory replaced with a symlink can read an external file and include its contents as a project artifact.",
+            "taxonomy": {
+              "category": "improper-symlink-resolution",
+              "cwe": [
+                "CWE-59"
+              ]
+            },
+            "title": "Workspace artifact capture follows symlinked directories outside the project",
+            "validation": {
+              "assertions": [
+                "manifestContainsExternalDescendant=true",
+                "externalCanaryCaptured=true",
+                "skipped=[]"
+              ],
+              "counterEvidence": [
+                "Leaf symlinks are recorded as links in manifests and excluded as artifact files.",
+                "An accepted receipt is required before server persistence; creating the symlink alone does not automatically exfiltrate data."
+              ],
+              "limitations": [
+                "No user files or secrets were accessed.",
+                "No live Codex run or provider exfiltration was performed.",
+                "Any claim of escaping the Codex OS sandbox depends on its effective filesystem policy and is not asserted."
+              ],
+              "method": "parent static trace plus inert local fixture reproduction",
+              "summary": "In a temporary Git repository, tracked capture/canary.txt was replaced by an ancestor symlink to a sibling fixture directory. The manifest still included capture/canary.txt, changed paths included it, and artifact reading returned the external canary with no skipped record. Fixture cleanup completed."
+            }
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Enforce canonical containment for every ancestor and the opened file in both manifest and artifact reads; use no-follow or descriptor-relative traversal with race-resistant checks. Reject paths whose parent chain escapes the pinned workspace, including tracked paths. Perform bounded reads on verified handles.",
+      "remediationTests": [
+        "A tracked descendant under an ancestor symlink to an inert external file is rejected or skipped in both manifest and artifact capture.",
+        "Race changing an ancestor between validation and open cannot include external bytes.",
+        "Direct symlink behavior, ordinary contained files and receipts continue to work."
+      ],
+      "rootCause": {
+        "evidenceRefs": [
+          "manifest-read",
+          "artifact-path",
+          "artifact-read",
+          "artifact-persist"
+        ],
+        "summary": "`git ls-files --cached --others` supplies indexed descendant names even after an ancestor directory changes to a symlink. Both manifest capture and artifact reading use lexical containment and final-component lstat. Ancestor symlinks therefore redirect the engine's file read outside the selected project. Accepted node outputs then persist the returned contents."
+      },
+      "ruleId": "symlink-following.workspace-artifact-capture",
+      "severity": {
+        "level": "medium",
+        "rationale": "A workspace-controlled ancestor link crosses the intended project artifact boundary and can copy engine-readable external data into artifacts. Persistence and onward provider context require an accepted execution."
+      },
+      "summary": "The workspace manifest and artifact reader validate lexical paths and only lstat the final component. An indexed path under a directory replaced with a symlink can read an external file and include its contents as a project artifact.",
+      "taxonomy": {
+        "category": "improper-symlink-resolution",
+        "cwe": [
+          "CWE-59"
+        ]
+      },
+      "title": "Workspace artifact capture follows symlinked directories outside the project",
+      "validation": {
+        "assertions": [
+          "manifestContainsExternalDescendant=true",
+          "externalCanaryCaptured=true",
+          "skipped=[]"
+        ],
+        "counterEvidence": [
+          "Leaf symlinks are recorded as links in manifests and excluded as artifact files.",
+          "An accepted receipt is required before server persistence; creating the symlink alone does not automatically exfiltrate data."
+        ],
+        "limitations": [
+          "No user files or secrets were accessed.",
+          "No live Codex run or provider exfiltration was performed.",
+          "Any claim of escaping the Codex OS sandbox depends on its effective filesystem policy and is not asserted."
+        ],
+        "method": "parent static trace plus inert local fixture reproduction",
+        "summary": "In a temporary Git repository, tracked capture/canary.txt was replaced by an ancestor symlink to a sibling fixture directory. The manifest still included capture/canary.txt, changed paths included it, and artifact reading returned the external canary with no skipped record. Fixture cleanup completed."
+      }
+    }
+  ],
+  "scanId": "24480af6-94e2-4bff-a6ed-d7617d78da4e",
+  "schemaVersion": "1.0"
+}

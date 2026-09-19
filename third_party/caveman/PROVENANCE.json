@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/juliusbrussee/caveman",
+  "commit": "15581d14007fd01fb3f132016741962f34936ca2",
+  "retrievedAt": "2026-09-13",
+  "files": {
+    "SKILL.md": { "upstreamPath": "skills/caveman/SKILL.md", "sha256": "c4d7354b4b063d54601fcdd5097a5b1713d1a1a2e386ac39efa438aa1ffef8ce", "license": "MIT" },
+    "LICENSE": { "upstreamPath": "LICENSE", "sha256": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b" },
+    "LICENSING.md": { "upstreamPath": "LICENSING.md", "sha256": "84e8dfe4096a9989640ed5d544355cc8878a874346245ec3b643bd5001c7b106" }
+  },
+  "integration": "apps/local-server/src/token_policy.mjs is a compact MIT skill adaptation. Source is retained for attribution and review, not injected wholesale into every prompt. No BSL engine, proxy, telemetry or upstream installer is included."
+}

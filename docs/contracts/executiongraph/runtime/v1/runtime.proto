@@ -1,0 +1,523 @@
+syntax = "proto3";
+
+package executiongraph.runtime.v1;
+
+// Normative trusted WorkerSupervisor-to-WorkerGateway contract.
+
+import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service WorkerGatewayService {
+  rpc ClaimExecutionToken(ClaimExecutionTokenRequest) returns (ClaimExecutionTokenResponse);
+  rpc HeartbeatExecutionToken(HeartbeatExecutionTokenRequest) returns (HeartbeatExecutionTokenResponse);
+  rpc InvokeCapability(InvokeCapabilityRequest) returns (InvokeCapabilityResponse);
+  rpc CompleteExecutionToken(CompleteExecutionTokenRequest) returns (CompleteExecutionTokenResponse);
+  rpc FailExecutionToken(FailExecutionTokenRequest) returns (FailExecutionTokenResponse);
+}
+
+message ClaimExecutionTokenRequest {
+  string worker_id = 1;
+  string worker_build_id = 2;
+  string region = 3;
+  repeated string capability_classes = 4;
+  repeated string supported_node_contracts = 5;
+  string execution_token_id = 6 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 readiness_generation = 7 [(buf.validate.field).uint64.gt = 0];
+  string outbox_message_id = 8 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string tenant_id = 9 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string environment_id = 10 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string home_cell_id = 11;
+  uint64 routing_epoch = 12 [(buf.validate.field).uint64.gt = 0];
+  uint64 scheduler_fence = 13;
+  string plan_hash = 14 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+}
+
+message ClaimExecutionTokenResponse {
+  option (buf.validate.message).cel = {
+    id: "claim_execution_token_response.result"
+    message: "claim response must contain a lease or rejection"
+    expression: "has(this.lease) || has(this.rejected)"
+  };
+
+  oneof result {
+    option (buf.validate.oneof).required = true;
+
+    ExecutionTokenLease lease = 1;
+    ClaimRejected rejected = 2;
+  }
+}
+
+message ClaimRejected {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_ALREADY_CLAIMED = 1;
+    REASON_STALE_READINESS = 2;
+    REASON_INCOMPATIBLE_WORKER = 3;
+    REASON_NOT_READY = 4;
+    REASON_POLICY_DENIED = 5;
+    REASON_WRONG_CELL = 6;
+  }
+  Reason reason = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  google.protobuf.Duration retry_after = 2;
+}
+
+message ExecutionTokenLease {
+  option (buf.validate.message).cel = {
+    id: "execution_token_lease.replay_axes"
+    message: "execution_mode, replay_operation, and adapter_effect_mode must form a legal replay triple"
+    expression: "(this.replay_operation == 1 && ((this.execution_mode == 1 && this.adapter_effect_mode == 3) || (this.execution_mode == 3 && this.adapter_effect_mode in [2, 4]))) || (this.replay_operation == 2 && this.execution_mode == 2 && this.adapter_effect_mode == 4) || (this.replay_operation == 3 && ((this.execution_mode == 2 && this.adapter_effect_mode == 1) || (this.execution_mode == 3 && this.adapter_effect_mode == 2))) || (this.replay_operation == 4 && ((this.execution_mode == 2 && this.adapter_effect_mode == 1) || (this.execution_mode == 3 && this.adapter_effect_mode in [2, 4]) || (this.execution_mode == 1 && this.adapter_effect_mode in [3, 4])))"
+  };
+
+  string tenant_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string environment_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string home_cell_id = 3;
+  uint64 routing_epoch = 4 [(buf.validate.field).uint64.gt = 0];
+  string execution_id = 5 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string activation_id = 6 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string execution_token_id = 7 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string attempt_id = 8 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 9 [(buf.validate.field).uint32.gt = 0];
+  uint64 scheduler_fence = 10;
+  uint64 fencing_token = 11 [(buf.validate.field).uint64.gt = 0];
+  uint64 readiness_generation = 12 [(buf.validate.field).uint64.gt = 0];
+  google.protobuf.Timestamp lease_expires_at = 13 [(buf.validate.field).required = true];
+  string graph_version_id = 14 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string compiled_plan_id = 15 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string plan_hash = 16 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string node_contract = 17;
+  string input_artifact_id = 18 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 base_state_version = 19;
+  string read_set_hash = 20 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  repeated string write_paths = 21 [(buf.validate.field).repeated = {
+    max_items: 1024
+    items: {
+      string: {
+        pattern: "^/([^/~]|~[01])*(/([^/~]|~[01])*)*$"
+        max_len: 2048
+      }
+    }
+  }];
+  string execution_grant = 22;
+  BudgetSlice budget = 23 [(buf.validate.field).required = true];
+  TraceContext trace = 24;
+  ExecutionMode execution_mode = 25 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  ReplayOperation replay_operation = 26 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  AdapterEffectMode adapter_effect_mode = 27 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string deterministic_seed = 28;
+  google.protobuf.Timestamp logical_time = 29 [(buf.validate.field).required = true];
+  string compilation_id = 30 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string plan_envelope_hash = 31 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string root_execution_id = 32 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string graph_source_hash = 33 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string policy_snapshot_id = 34 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string policy_snapshot_hash = 35 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string dependency_lock_hash = 36 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string implementation_digest = 37 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string configuration_artifact_id = 38 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string input_hash = 39 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string input_manifest_artifact_id = 40 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string read_set_manifest_artifact_id = 41 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint64 remaining_effect_calls = 42 [(buf.validate.field).uint64.lte = 4096];
+  ExecutionScopeLineage scope_lineage = 43 [(buf.validate.field).required = true];
+}
+
+// Structured deterministic activation lineage. It is data, not an authority
+// token, and is safe for the supervisor to copy into StartInvocation.
+message ExecutionScopeLineage {
+  string namespace = 1 [(buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9._/-]{0,254}$"];
+  repeated string subgraph_path = 2 [(buf.validate.field).repeated.max_items = 128];
+  repeated LoopPathElement loop_path = 3 [(buf.validate.field).repeated.max_items = 128];
+  repeated string expansion_path = 4 [(buf.validate.field).repeated.max_items = 128];
+}
+
+message LoopPathElement {
+  string loop = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+  uint64 iteration = 2;
+}
+
+// A reference minted by trusted supervisor/gateway code only after it has
+// bounded, hashed, persisted, and tenant-scoped uploaded bytes.
+message TrustedArtifactReference {
+  string artifact_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string content_hash = 2 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  uint64 byte_length = 3;
+}
+
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  EXECUTION_MODE_LIVE = 1;
+  EXECUTION_MODE_REPLAY = 2;
+  EXECUTION_MODE_SIMULATION = 3;
+}
+
+enum ReplayOperation {
+  REPLAY_OPERATION_UNSPECIFIED = 0;
+  REPLAY_OPERATION_NONE = 1;
+  REPLAY_OPERATION_STATE_REBUILD = 2;
+  REPLAY_OPERATION_EXACT_REPLAY = 3;
+  REPLAY_OPERATION_FORKED_REPLAY = 4;
+}
+
+enum AdapterEffectMode {
+  ADAPTER_EFFECT_MODE_UNSPECIFIED = 0;
+  ADAPTER_EFFECT_MODE_SUBSTITUTE_RECORDED = 1;
+  ADAPTER_EFFECT_MODE_REEXECUTE_READ_ONLY = 2;
+  ADAPTER_EFFECT_MODE_REEXECUTE_AUTHORIZED_EFFECT = 3;
+  ADAPTER_EFFECT_MODE_FORBID = 4;
+}
+
+message BudgetSlice {
+  google.protobuf.Timestamp deadline = 1 [(buf.validate.field).required = true];
+  uint64 max_cost_microunits = 2;
+  uint64 max_input_tokens = 3;
+  uint64 max_output_tokens = 4;
+  uint64 max_artifact_bytes = 5;
+}
+
+message TraceContext {
+  string traceparent = 1;
+  string tracestate = 2;
+}
+
+message HeartbeatExecutionTokenRequest {
+  option (buf.validate.message).cel = {
+    id: "heartbeat_execution_token.progress"
+    message: "progress_artifact_id requires a positive progress_sequence"
+    expression: "!has(this.progress_artifact_id) || this.progress_sequence > 0"
+  };
+
+  string execution_token_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string attempt_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 3 [(buf.validate.field).uint32.gt = 0];
+  uint64 routing_epoch = 4 [(buf.validate.field).uint64.gt = 0];
+  uint64 scheduler_fence = 5;
+  uint64 fencing_token = 6 [(buf.validate.field).uint64.gt = 0];
+  string plan_hash = 7 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  uint64 progress_sequence = 8;
+  optional string progress_artifact_id = 9 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  MeteredUsage cumulative_usage = 10;
+}
+
+message HeartbeatExecutionTokenResponse {
+  google.protobuf.Timestamp lease_expires_at = 1 [(buf.validate.field).required = true];
+  bool cancellation_requested = 2;
+  BudgetSlice remaining_budget = 3 [(buf.validate.field).required = true];
+}
+
+message InvokeCapabilityRequest {
+  string execution_token_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string attempt_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 3 [(buf.validate.field).uint32.gt = 0];
+  uint64 routing_epoch = 4 [(buf.validate.field).uint64.gt = 0];
+  uint64 scheduler_fence = 5;
+  uint64 fencing_token = 6 [(buf.validate.field).uint64.gt = 0];
+  string plan_hash = 7 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string request_id = 8 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string capability_handle_id = 9;
+  string arguments_artifact_id = 10 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+}
+
+message InvokeCapabilityResponse {
+  option (buf.validate.message).cel = {
+    id: "invoke_capability_response.result"
+    message: "response must contain an invocation result or a pre-invocation rejection"
+    expression: "has(this.invocation) || has(this.pre_invocation_rejection)"
+  };
+  option (buf.validate.message).cel = {
+    id: "invoke_capability_response.pre_invocation_disposition"
+    message: "pre-invocation rejection cannot require effect reconciliation"
+    expression: "!has(this.pre_invocation_rejection) || this.pre_invocation_rejection.retry_disposition != 3"
+  };
+
+  oneof result {
+    option (buf.validate.oneof).required = true;
+
+    // The adapter was invoked (or a recorded invocation was substituted).
+    CapabilityInvocationResult invocation = 1;
+    // Grant, policy, schema, fence, or budget rejection before any invocation.
+    // No effect receipt exists for this branch.
+    GatewayClassifiedError pre_invocation_rejection = 2;
+  }
+}
+
+message CapabilityInvocationResult {
+  option (buf.validate.message).cel = {
+    id: "capability_invocation_result.result"
+    message: "an invoked capability must return an artifact or a runtime error"
+    expression: "has(this.result_artifact_id) || has(this.runtime_error)"
+  };
+  option (buf.validate.message).cel = {
+    id: "capability_invocation_result.artifact_committed"
+    message: "a result artifact requires a committed effect receipt"
+    expression: "!has(this.result_artifact_id) || this.effect_receipt.outcome == 2"
+  };
+  option (buf.validate.message).cel = {
+    id: "capability_invocation_result.ambiguous_reconcile"
+    message: "unknown or reconciling effects require a reconciliation-classified runtime error"
+    expression: "(this.effect_receipt.outcome in [4, 5]) == (has(this.runtime_error) && this.runtime_error.retry_disposition == 3)"
+  };
+  option (buf.validate.message).cel = {
+    id: "capability_invocation_result.committed_error"
+    message: "a committed effect with an error cannot be retried"
+    expression: "this.effect_receipt.outcome != 2 || !has(this.runtime_error) || this.runtime_error.retry_disposition == 1"
+  };
+  option (buf.validate.message).cel = {
+    id: "capability_invocation_result.rejected_error"
+    message: "a destination-rejected effect cannot be retried"
+    expression: "this.effect_receipt.outcome != 6 || (has(this.runtime_error) && this.runtime_error.retry_disposition == 1)"
+  };
+
+  oneof result {
+    option (buf.validate.oneof).required = true;
+
+    string result_artifact_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+    GatewayClassifiedError runtime_error = 3;
+  }
+  // Mandatory once trusted adapter/replay processing begins, including effect
+  // reservation or adapter preflight. NOT_STARTED means the external
+  // destination operation was provably not invoked. Destination REJECTED and
+  // UNKNOWN are invocation outcomes represented here, never top-level policy
+  // rejection.
+  ExternalEffectReceipt effect_receipt = 2 [(buf.validate.field).required = true];
+}
+
+message CompleteExecutionTokenRequest {
+  option (buf.validate.message).cel = {
+    id: "complete_execution_token_request.no_ambiguous_effects"
+    message: "a supplied completion receipt cannot be unknown or reconciling"
+    expression: "this.effect_receipts.all(r, !(r.outcome in [4, 5]))"
+  };
+
+  string execution_token_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string attempt_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 3 [(buf.validate.field).uint32.gt = 0];
+  uint64 routing_epoch = 4 [(buf.validate.field).uint64.gt = 0];
+  uint64 scheduler_fence = 5;
+  uint64 fencing_token = 6 [(buf.validate.field).uint64.gt = 0];
+  string plan_hash = 7 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  uint64 base_state_version = 8;
+  repeated StateWriteIntent state_write_intents = 9 [(buf.validate.field).repeated.max_items = 1024];
+  optional string output_artifact_id = 10 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  MeteredUsage usage = 11;
+  // Consistency evidence, not a completeness assertion. In the terminal
+  // transaction WorkerGateway MUST lock and load every canonical
+  // effect_operation for this tenant/execution/activation, reject any supplied
+  // receipt that does not match its ledger row, and derive terminal eligibility
+  // from that complete ledger set. An omitted receipt cannot hide UNKNOWN or
+  // RECONCILING state.
+  repeated ExternalEffectReceipt effect_receipts = 12 [(buf.validate.field).repeated.max_items = 4096];
+}
+
+message FailExecutionTokenRequest {
+  string execution_token_id = 1 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string attempt_id = 2 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  uint32 attempt_ordinal = 3 [(buf.validate.field).uint32.gt = 0];
+  uint64 routing_epoch = 4 [(buf.validate.field).uint64.gt = 0];
+  uint64 scheduler_fence = 5;
+  uint64 fencing_token = 6 [(buf.validate.field).uint64.gt = 0];
+  string plan_hash = 7 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  RuntimeError error = 8 [(buf.validate.field).required = true];
+  MeteredUsage usage = 9;
+  // Advisory consistency evidence only. Retry, stop, and reconciliation are
+  // classified from the complete locked effect_operation set, never from this
+  // possibly empty or partial projection.
+  repeated ExternalEffectReceipt effect_receipts = 10 [(buf.validate.field).repeated.max_items = 4096];
+}
+
+message StateWriteIntent {
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.operation"
+    message: "operation must be specified"
+    expression: "this.operation != 0"
+  };
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.path_and_scope"
+    message: "every operation requires an absolute JSON Pointer path; CLOSE_SCOPE alone also requires scope_id"
+    expression: "this.path.startsWith('/') && (this.operation == 5 ? this.scope_id != '' : this.scope_id == '')"
+  };
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.value"
+    message: "PUT, REDUCE, and BIND_ARTIFACT require exactly one value; DELETE and CLOSE_SCOPE forbid values"
+    expression: "this.operation in [2, 5] ? (!has(this.inline_value) && !has(this.value_artifact_id)) : (has(this.inline_value) || has(this.value_artifact_id))"
+  };
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.artifact_binding"
+    message: "BIND_ARTIFACT requires value_artifact_id"
+    expression: "this.operation != 4 || has(this.value_artifact_id)"
+  };
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.expectations"
+    message: "REDUCE and CLOSE_SCOPE forbid expectations; expected_value_hash requires expected_path_version"
+    expression: "(!(this.operation in [3, 5]) || (!has(this.expected_path_version) && !has(this.expected_value_hash))) && (!has(this.expected_value_hash) || has(this.expected_path_version))"
+  };
+  option (buf.validate.message).cel = {
+    id: "state_write_intent.close_scope_dedupe"
+    message: "CLOSE_SCOPE forbids a worker-supplied dedupe key"
+    expression: "this.operation != 5 || this.dedupe_key == ''"
+  };
+
+  enum Operation {
+    OPERATION_UNSPECIFIED = 0;
+    OPERATION_PUT = 1;
+    OPERATION_DELETE = 2;
+    OPERATION_REDUCE = 3;
+    OPERATION_BIND_ARTIFACT = 4;
+    OPERATION_CLOSE_SCOPE = 5;
+  }
+  Operation operation = 1 [(buf.validate.field).enum.defined_only = true];
+  string path = 2 [(buf.validate.field).string = {
+    pattern: "^/([^/~]|~[01])*(/([^/~]|~[01])*)*$"
+    max_len: 2048
+  }];
+  optional uint64 expected_path_version = 3;
+  optional string expected_value_hash = 4 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string dedupe_key = 5 [(buf.validate.field).string.max_len = 512];
+  oneof value {
+    google.protobuf.Value inline_value = 6;
+    // Accepted only when minted by the trusted supervisor/gateway upload path.
+    string value_artifact_id = 7 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  }
+  // Deterministic scope digest; present only for OPERATION_CLOSE_SCOPE.
+  string scope_id = 8 [(buf.validate.field).string.pattern = "^(sha256:[a-f0-9]{64})?$"];
+}
+
+message MeteredUsage {
+  uint64 input_tokens = 1;
+  uint64 output_tokens = 2;
+  uint64 cost_microunits = 3;
+  uint64 cpu_millis = 4;
+  uint64 memory_byte_seconds = 5;
+  uint64 network_bytes = 6;
+}
+
+message ExternalEffectReceipt {
+  reserved 2;
+  reserved "idempotency_key_hash";
+
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    // Trusted evidence that adapter processing reserved the effect but the
+    // external destination operation boundary was never crossed. During a
+    // terminal transaction this may normalize a matching RESERVED ledger row
+    // to canonical NOT_COMMITTED; it is never a terminal RESERVED status.
+    OUTCOME_NOT_STARTED = 1;
+    OUTCOME_COMMITTED = 2;
+    // Trusted evidence that an invocation may have started but did not commit.
+    // Both NOT_STARTED and NOT_COMMITTED project to canonical NOT_COMMITTED.
+    OUTCOME_NOT_COMMITTED = 3;
+    OUTCOME_UNKNOWN = 4;
+    OUTCOME_RECONCILING = 5;
+    OUTCOME_REJECTED = 6;
+  }
+  string effect_id = 1 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string canonical_request_hash = 3 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  string provider_request_id = 4;
+  Outcome outcome = 5 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  optional string receipt_artifact_id = 6 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+  string operation_key_hash = 7 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+  optional string destination_idempotency_key_hash = 8 [(buf.validate.field).string.pattern = "^sha256:[a-f0-9]{64}$"];
+}
+
+enum RuntimeErrorCategory {
+  RUNTIME_ERROR_CATEGORY_UNSPECIFIED = 0;
+  RUNTIME_ERROR_CATEGORY_USER = 1;
+  RUNTIME_ERROR_CATEGORY_TRANSIENT = 2;
+  RUNTIME_ERROR_CATEGORY_PROVIDER = 3;
+  RUNTIME_ERROR_CATEGORY_POLICY = 4;
+  RUNTIME_ERROR_CATEGORY_RESOURCE = 5;
+  RUNTIME_ERROR_CATEGORY_BUG = 6;
+  RUNTIME_ERROR_CATEGORY_CANCELLED = 7;
+}
+
+// An observed, redacted failure. It deliberately contains no retry decision:
+// worker and sandbox input cannot assert that an operation is safe to repeat.
+message RuntimeError {
+  reserved 3;
+  reserved "retryable";
+
+  string code = 1 [(buf.validate.field).string = {
+    pattern: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+){0,7}$"
+    min_len: 3
+    max_len: 128
+  }];
+  RuntimeErrorCategory category = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string safe_message = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 1024
+  }];
+  optional string detail_artifact_id = 5 [(buf.validate.field).string.pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"];
+}
+
+// Produced only by trusted WorkerGateway code after it has combined the
+// observed error with the pinned node definition, effect receipt/outcome,
+// attempt policy, budgets, and current policy snapshot.
+message GatewayClassifiedError {
+  option (buf.validate.message).cel = {
+    id: "gateway_classified_error.retry_after"
+    message: "retry_after is legal only for RETRY_ALLOWED"
+    expression: "!has(this.retry_after) || this.retry_disposition == 2"
+  };
+
+  enum RetryDisposition {
+    RETRY_DISPOSITION_UNSPECIFIED = 0;
+    RETRY_DISPOSITION_DO_NOT_RETRY = 1;
+    RETRY_DISPOSITION_RETRY_ALLOWED = 2;
+    RETRY_DISPOSITION_RECONCILE_REQUIRED = 3;
+  }
+
+  RuntimeError error = 1 [(buf.validate.field).required = true];
+  RetryDisposition retry_disposition = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  google.protobuf.Duration retry_after = 3;
+}
+
+message CompleteExecutionTokenResponse {
+  TaskCommitResult result = 1 [(buf.validate.field).required = true];
+}
+
+message FailExecutionTokenResponse {
+  TaskCommitResult result = 1 [(buf.validate.field).required = true];
+}
+
+message TaskCommitResult {
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    OUTCOME_ACCEPTED = 1;
+    OUTCOME_ALREADY_ACCEPTED = 2;
+    OUTCOME_STALE_LEASE = 3;
+    OUTCOME_STATE_CONFLICT = 4;
+    OUTCOME_POLICY_REJECTED = 5;
+  }
+  Outcome outcome = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  uint64 committed_state_version = 2;
+  uint64 committed_history_sequence = 3;
+  string safe_message = 4;
+}

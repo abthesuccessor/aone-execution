@@ -1,0 +1,27 @@
+{
+  "name": "@aone-execution/desktop",
+  "productName": "Aone Execution",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Installable desktop host for the local Aone Execution workbench.",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build:workbench": "npm --workspace @aone-execution/workbench run build",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "sync:skills": "node scripts/sync-bundled-skills.mjs",
+    "clean:mac-bundles": "node scripts/clean-macos-bundles.mjs",
+    "prepare:tauri": "npm run build:workbench && npm run build:sidecar && npm run sync:skills",
+    "dev": "npm run prepare:tauri && tauri dev",
+    "build": "npm run prepare:tauri && tauri build",
+    "build:mac": "npm run clean:mac-bundles && npm run prepare:tauri && CI=true tauri build --bundles app,dmg",
+    "check": "npm run build:sidecar && npm run sync:skills && cargo check --manifest-path src-tauri/Cargo.toml",
+    "test": "npm run build:sidecar && npm run sync:skills && node --test test/*.test.mjs && cargo test --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "esbuild": "0.28.2"
+  }
+}

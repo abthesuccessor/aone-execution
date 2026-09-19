@@ -1,0 +1,28 @@
+{
+  "name": "@aone-execution/local-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./embedded": "./src/embedded.mjs",
+    "./server": "./src/server.mjs"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node --test --test-concurrency=1",
+    "storage:import-sqlite": "node src/import_legacy_sqlite.mjs",
+    "storage:psql": "node src/postgres_psql.mjs"
+  },
+  "dependencies": {
+    "@langchain/core": "1.2.11",
+    "@langchain/langgraph": "1.4.15",
+    "embedded-postgres": "18.4.0-beta.17",
+    "pg": "8.23.0",
+    "read-excel-file": "9.3.10",
+    "yaml": "2.9.0"
+  }
+}
